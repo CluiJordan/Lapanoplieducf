@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { LayoutGrid, Minimize2, ArrowRightLeft, Heart, Lightbulb, Scissors, LayoutList, FileSpreadsheet, Rocket } from 'lucide-react';
+import { LayoutGrid, Minimize2, ArrowRightLeft, Heart, Scissors, LayoutList, FileSpreadsheet, Rocket } from 'lucide-react';
 import SuggestionModal from './components/SuggestionModal';
+import DonationModal from './components/DonationModal';
 import ComparatorTool from './components/ComparatorTool';
 import CompressorTool from './components/CompressorTool';
 import ColumnExtractorTool from './components/ColumnExtractorTool';
 
+// Assure-toi que ton logo est bien dans src/assets/logo.png
 import logoData from './assets/logo.png'; 
 
 const App = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
+  const [isDonationOpen, setIsDonationOpen] = useState(false);
 
   const renderView = () => {
     switch(currentView) {
@@ -19,11 +22,9 @@ const App = () => {
         default: return (
             <div className="animate-in fade-in duration-700">
                 {/* Header Dashboard */}
-                {/* pt-4 seulement pour remonter le logo plus haut */}
                 <header className="mb-10 text-center pt-4">
                     
                     {/* ZONE LOGO XXL */}
-                    {/* h-48 (192px) mobile, h-64 (256px) PC */}
                     <div className="flex justify-center mb-6">
                         <img 
                             src={logoData} 
@@ -32,8 +33,7 @@ const App = () => {
                         />
                     </div>
 
-                    {/* Titre Simplifié et Réduit */}
-                    {/* text-3xl (plus petit) au lieu de text-5xl */}
+                    {/* Titre Simplifié */}
                     <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">
                         Suite <span className="text-indigo-600">Administrative</span>
                     </h1>
@@ -121,7 +121,7 @@ const App = () => {
 
                 </div>
 
-                {/* Donation Section */}
+                {/* Section Soutien (Suggestions & Dons) */}
                 <div className="mt-16 bg-white rounded-3xl border border-slate-200 shadow-sm max-w-3xl mx-auto overflow-hidden">
                     <div className="p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="flex items-center gap-5 text-left">
@@ -133,7 +133,7 @@ const App = () => {
                                     Soutenez Lapanoplieducf
                                 </h3>
                                 <p className="text-slate-500 text-sm mt-1 max-w-md leading-relaxed">
-                                    Aidez-nous à maintenir ces outils gratuits et sans publicité. Chaque contribution, même petite, fait la différence.
+                                    Aidez-nous à maintenir ces outils gratuits et sans publicité. Chaque contribution compte.
                                 </p>
                              </div>
                         </div>
@@ -145,7 +145,10 @@ const App = () => {
                             >
                                 Suggestions
                             </button>
-                            <button className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full font-bold shadow-lg transition-transform hover:-translate-y-0.5 text-sm flex items-center gap-2">
+                            <button 
+                                onClick={() => setIsDonationOpen(true)}
+                                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-full font-bold shadow-lg transition-transform hover:-translate-y-0.5 text-sm flex items-center gap-2"
+                            >
                                 <Heart className="w-4 h-4 text-red-400 fill-red-400" />
                                 Faire un don
                             </button>
@@ -167,7 +170,10 @@ const App = () => {
       <div className="max-w-7xl mx-auto">
         {renderView()}
       </div>
+      
+      {/* Modales */}
       {isSuggestionOpen && <SuggestionModal onClose={() => setIsSuggestionOpen(false)} />}
+      {isDonationOpen && <DonationModal onClose={() => setIsDonationOpen(false)} />}
     </div>
   );
 };
