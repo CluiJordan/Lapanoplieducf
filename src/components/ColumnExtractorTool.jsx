@@ -1,17 +1,74 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Upload, FileSpreadsheet, Download, ChevronLeft, 
-  ArrowUp, ArrowDown, X, Check, Eye, FileText, LayoutList 
+  ArrowRight, X, Check, Eye, FileText, LayoutList, 
+  Settings, RefreshCw, ArrowUp, ArrowDown
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const ColumnExtractorTool = ({ onBack }) => {
   const [file, setFile] = useState(null);
+  const [rawData, setRawData] = useState([]); // Données brutes de la feuille
+  const [headerRowIndex, setHeaderRowIndex] = useState(1); // Ligne des titres (1-based)
+  
   const [allHeaders, setAllHeaders] = useState([]);
   const [selectedHeaders, setSelectedHeaders] = useState([]);
   const [previewData, setPreviewData] = useState([]);
-  const [fullData, setFullData] = useState([]);
+  
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Détection automatique de la ligne de titres (Heuristique)
+  const detectBestHeaderRow = (data) => {
+    if (!data || data.length === 0) return 1;
+    let bestRow = 0;
+    let maxColumns = 0;
+
+    // On scanne les 10 premières lignes
+    for (let i = 0; i < Math.min(data.length, 10); i++) {
+        const row = data[i];
+        if (Array.isArray(row)) {
+            // On compte les cellules non vides qui ressemblent à des titres (string)
+            const filledCols = row.filter(cell => cell && typeof cell === 'string' && cell.trim().length > 0).length;
+            if (filledCols > maxColumns) {
+                maxColumns = filledCols;
+                bestRow = i;
+            }
+        }
+    }
+    return bestRow + 1; // Retourne en 1-based pour l'utilisateur
+  };
+
+  const parseFiledata = (data, rowIndex) => {
+    // rowIndex est 1-based, on convertit en 0-based
+    const rIndex = rowIndex - 1;
+    
+    if (rIndex < 0 || rIndex >= data.length) return;
+
+    // 1. Extraire les en-têtes
+    const rawHeaders = data[rIndex];
+    if (!rawHeaders) return;
+
+    // Nettoyage des headers (supprimer les vides, trimmer)
+    const headers = rawHeaders.map(h => String(h || "").trim()).filter(h => h !== "");
+    setAllHeaders(headers);
+    
+    // Par défaut, on vide la sélection pour éviter les conflits
+    setSelectedHeaders([]); 
+
+    // 2. Préparer l'aperçu
+    // On prend les 5 lignes SUIVANT la ligne de titre
+    const previewRows = data.slice(rIndex + 1, rIndex + 6).map(row => {
+        let obj = {};
+        rawHeaders.forEach((h, colIndex) => {
+            const cleanH = String(h || "").trim();
+            if (cleanH) {
+                obj[cleanH] = row[colIndex];
+            }
+        });
+        return obj;
+    });
+    setPreviewData(previewRows);
+  };
 
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -24,30 +81,28 @@ const ColumnExtractorTool = ({ onBack }) => {
     reader.onload = (evt) => {
       const bstr = evt.target.result;
       const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
+      const ws = wb.Sheets[wb.SheetNames[0]];
       
-      // Extraction des données brutes
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      // On lit TOUT comme un tableau de tableaux (header: 1)
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      setRawData(data);
       
-      if (data.length > 0) {
-        // La première ligne contient les en-têtes
-        const headers = data[0].map(h => String(h).trim()).filter(h => h !== "");
-        setAllHeaders(headers);
-        
-        // Par défaut, on ne sélectionne rien (ou tout, selon préférence. Ici: rien pour forcer le tri)
-        setSelectedHeaders([]); 
-        
-        // On garde les données complètes pour l'export
-        // On transforme en tableau d'objets pour faciliter la manip
-        const jsonData = XLSX.utils.sheet_to_json(ws);
-        setFullData(jsonData);
-        setPreviewData(jsonData.slice(0, 5)); // Aperçu des 5 premières lignes
-      }
+      // Auto-détection
+      const bestRow = detectBestHeaderRow(data);
+      setHeaderRowIndex(bestRow);
+      parseFiledata(data, bestRow);
+      
       setIsProcessing(false);
     };
     reader.readAsBinaryString(uploadedFile);
   };
+
+  // Re-parser si l'utilisateur change la ligne de titres manuellement
+  useEffect(() => {
+    if (rawData.length > 0) {
+        parseFiledata(rawData, headerRowIndex);
+    }
+  }, [headerRowIndex]);
 
   const toggleHeader = (header) => {
     if (selectedHeaders.includes(header)) {
@@ -70,182 +125,214 @@ const ColumnExtractorTool = ({ onBack }) => {
   const exportData = (type) => {
     if (selectedHeaders.length === 0) return;
 
-    // Création du nouveau dataset avec uniquement les colonnes choisies dans l'ordre choisi
-    const exportSet = fullData.map(row => {
-      const newRow = {};
-      selectedHeaders.forEach(header => {
-        newRow[header] = row[header];
-      });
-      return newRow;
+    // On reconstruit les données complètes à partir du rawData et de la ligne de titre actuelle
+    const rIndex = headerRowIndex - 1;
+    const rawHeaders = rawData[rIndex];
+    
+    // Mapping pour savoir quel header correspond à quel index de colonne dans le rawData
+    const colIndices = {};
+    rawHeaders.forEach((h, idx) => {
+        const cleanH = String(h || "").trim();
+        if (cleanH && selectedHeaders.includes(cleanH)) {
+            colIndices[cleanH] = idx;
+        }
     });
 
-    const ws = XLSX.utils.json_to_sheet(exportSet, { header: selectedHeaders });
+    const rowsToExport = rawData.slice(rIndex + 1).map(row => {
+        const newObj = {};
+        selectedHeaders.forEach(header => {
+            const colIdx = colIndices[header];
+            newObj[header] = row[colIdx];
+        });
+        return newObj;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rowsToExport, { header: selectedHeaders });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Extrait");
 
-    if (type === 'csv') {
-      XLSX.writeFile(wb, `extrait_${file.name.split('.')[0]}.csv`);
-    } else {
-      XLSX.writeFile(wb, `extrait_${file.name.split('.')[0]}.xlsx`);
-    }
+    const fileName = `extrait_${file.name.split('.')[0]}`;
+    if (type === 'csv') XLSX.writeFile(wb, `${fileName}.csv`);
+    else XLSX.writeFile(wb, `${fileName}.xlsx`);
   };
 
   return (
-    <div className="animate-in slide-in-from-right-4 duration-300">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <button onClick={onBack} className="p-2 bg-white rounded-full border border-slate-200 hover:bg-slate-100 active:scale-90 transition-all">
-            <ChevronLeft className="w-6 h-6 text-slate-600" />
+    <div className="animate-in slide-in-from-right-4 duration-500">
+      {/* Header Navigation */}
+      <div className="flex items-center gap-3 mb-8">
+        <button onClick={onBack} className="p-2.5 bg-white rounded-full border border-slate-200 hover:bg-slate-100 active:scale-90 transition-all shadow-sm">
+            <ChevronLeft className="w-6 h-6 text-slate-700" />
         </button>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Extracteur de Colonnes</h2>
+        <div>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Extracteur Pro</h2>
+            <p className="text-slate-500 text-sm font-medium">Nettoyez et restructurez vos fichiers complexes</p>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-6">
-        
-        {/* COLONNE GAUCHE : UPLOAD ET SÉLECTION */}
-        <div className="lg:col-span-4 space-y-6">
-            
-            {/* Zone Upload */}
-            <div className={`p-6 rounded-3xl border-2 transition-all ${file ? 'border-green-500 bg-green-50' : 'bg-white border-dashed border-slate-200 hover:border-indigo-300'}`}>
-                <div className="flex flex-col items-center text-center">
-                    <LayoutList className={`w-10 h-10 mb-3 ${file ? 'text-green-600' : 'text-slate-300'}`} />
-                    {!file ? (
-                        <>
-                            <p className="font-black text-[10px] uppercase text-slate-400 tracking-widest mb-3">Fichier Source</p>
-                            <label className="cursor-pointer bg-slate-900 text-white px-6 py-2.5 rounded-xl text-[10px] font-black active:scale-95 transition-all uppercase hover:bg-slate-800">
-                                Importer Excel
-                                <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="hidden" />
-                            </label>
-                        </>
-                    ) : (
-                        <>
-                            <p className="font-bold text-green-800 text-sm truncate max-w-[200px] mb-1">{file.name}</p>
-                            <button onClick={() => {setFile(null); setAllHeaders([]); setSelectedHeaders([]);}} className="text-[10px] font-bold text-slate-400 underline hover:text-red-500">Changer de fichier</button>
-                        </>
-                    )}
+      {!file ? (
+        /* VUE 1 : UPLOAD GRAND FORMAT */
+        <div className="max-w-4xl mx-auto mt-10">
+            <div className={`h-80 rounded-[40px] border-4 border-dashed transition-all flex flex-col items-center justify-center gap-6 group hover:border-orange-300 hover:bg-orange-50/30 border-slate-200 bg-white`}>
+                <div className="w-24 h-24 bg-orange-50 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                    <LayoutList className="w-10 h-10 text-orange-500" />
                 </div>
+                <div className="text-center">
+                    <h3 className="text-2xl font-black text-slate-700 uppercase tracking-wide">Déposez votre fichier ici</h3>
+                    <p className="text-slate-400 font-medium mt-2">Compatible Excel (.xlsx, .xls) - Même avec en-têtes décalés</p>
+                </div>
+                <label className="cursor-pointer bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+                    Sélectionner un fichier
+                    <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="hidden" />
+                </label>
             </div>
-
-            {/* Liste des Colonnes Disponibles */}
-            {allHeaders.length > 0 && (
-                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-black text-xs uppercase text-slate-400 tracking-widest">Colonnes Disponibles ({allHeaders.length})</h3>
-                        <button onClick={() => setSelectedHeaders(allHeaders)} className="text-[10px] font-bold text-indigo-600 underline">Tout ajouter</button>
+        </div>
+      ) : (
+        /* VUE 2 : INTERFACE DE TRAVAIL */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-auto lg:h-[750px]">
+            
+            {/* COLONNE GAUCHE : CONFIGURATION */}
+            <div className="lg:col-span-5 flex flex-col gap-6 h-full">
+                
+                {/* Carte Fichier & Réglages */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-4 shrink-0">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-green-50 rounded-xl"><FileSpreadsheet className="w-6 h-6 text-green-600"/></div>
+                            <div className="overflow-hidden">
+                                <p className="font-bold text-slate-800 truncate max-w-[200px]">{file.name}</p>
+                                <button onClick={() => setFile(null)} className="text-[10px] font-bold text-red-400 hover:text-red-600 uppercase tracking-wide">Changer de fichier</button>
+                            </div>
+                        </div>
+                        <div className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold text-slate-500">{allHeaders.length} Colonnes</div>
                     </div>
-                    <div className="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+
+                    {/* Réglage Ligne des Titres */}
+                    <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 text-slate-500">
+                            <Settings className="w-4 h-4" />
+                            <span className="text-xs font-black uppercase tracking-widest">Ligne des titres :</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-400">N°</span>
+                            <input 
+                                type="number" 
+                                min="1" 
+                                max="100" 
+                                value={headerRowIndex} 
+                                onChange={(e) => setHeaderRowIndex(parseInt(e.target.value) || 1)}
+                                className="w-16 h-10 text-center font-black text-indigo-600 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                            />
+                            <button onClick={() => parseFiledata(rawData, headerRowIndex)} className="p-2 bg-white border border-slate-200 rounded-xl hover:text-indigo-600 active:rotate-180 transition-all"><RefreshCw className="w-4 h-4"/></button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Liste des Colonnes (Scrollable) */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col min-h-0">
+                    <div className="flex justify-between items-center mb-4 shrink-0">
+                        <h3 className="font-black text-xs uppercase text-slate-400 tracking-widest">Colonnes Disponibles</h3>
+                        <div className="flex gap-2">
+                            <button onClick={() => setSelectedHeaders(allHeaders)} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md hover:bg-indigo-100">Tout</button>
+                            <button onClick={() => setSelectedHeaders([])} className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md hover:bg-slate-100">Rien</button>
+                        </div>
+                    </div>
+                    <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-2">
                         {allHeaders.map((header, idx) => {
                             const isSelected = selectedHeaders.includes(header);
                             return (
                                 <button 
                                     key={idx} 
                                     onClick={() => toggleHeader(header)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all active:scale-95 text-left truncate max-w-full ${isSelected ? 'bg-indigo-50 border-indigo-200 text-indigo-400 opacity-50' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-400 hover:text-indigo-600'}`}
+                                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all group ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]' : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/30'}`}
                                 >
-                                    {header}
+                                    <span className="font-bold text-xs truncate mr-2 text-left">{header}</span>
+                                    {isSelected ? <CheckCircle className="w-4 h-4 shrink-0 text-white" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200 group-hover:border-indigo-300"></div>}
                                 </button>
                             );
                         })}
                     </div>
                 </div>
-            )}
-        </div>
+            </div>
 
-        {/* COLONNE DROITE : ORDRE ET APERÇU */}
-        <div className="lg:col-span-8 flex flex-col gap-6 h-full">
-            
-            {selectedHeaders.length > 0 ? (
-                <>
-                    {/* Zone de Tri */}
-                    <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm animate-in slide-in-from-bottom-2">
-                        <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
-                            <h3 className="font-black text-xs uppercase text-indigo-600 tracking-widest flex items-center gap-2">
-                                <FileSpreadsheet className="w-4 h-4"/> Ordre de Sortie ({selectedHeaders.length})
-                            </h3>
-                            <button onClick={() => setSelectedHeaders([])} className="text-[10px] font-bold text-red-400 hover:text-red-600 flex items-center gap-1"><X className="w-3 h-3"/> Tout retirer</button>
+            {/* COLONNE DROITE : ORDRE & APERÇU */}
+            <div className="lg:col-span-7 flex flex-col gap-6 h-full">
+                
+                {/* Zone de Tri Visuelle */}
+                <div className="bg-slate-900 rounded-3xl p-6 shadow-2xl text-white shrink-0">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                            <LayoutList className="w-5 h-5 text-orange-400" />
+                            <h3 className="font-black text-sm uppercase tracking-widest">Fichier de Sortie ({selectedHeaders.length} cols)</h3>
                         </div>
-                        
-                        <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                        {selectedHeaders.length > 0 && <span className="text-[10px] font-mono bg-slate-800 px-2 py-1 rounded text-slate-400">Glisser pour trier (Bientôt)</span>}
+                    </div>
+
+                    {selectedHeaders.length === 0 ? (
+                        <div className="h-32 border-2 border-dashed border-slate-700 rounded-2xl flex items-center justify-center text-slate-500 text-xs font-medium uppercase tracking-wider">
+                            Sélectionnez des colonnes à gauche
+                        </div>
+                    ) : (
+                        <div className="flex gap-3 overflow-x-auto pb-4 custom-scrollbar">
                             {selectedHeaders.map((header, idx) => (
-                                <div key={idx} className="flex-shrink-0 w-32 bg-indigo-50 rounded-xl p-3 border border-indigo-100 relative group">
-                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => toggleHeader(header)} className="p-1 hover:bg-red-100 rounded text-red-400"><X className="w-3 h-3"/></button>
-                                    </div>
-                                    <p className="font-bold text-indigo-900 text-xs truncate mb-3" title={header}>{header}</p>
-                                    <div className="flex gap-1 justify-center">
-                                        <button 
-                                            onClick={() => moveHeader(idx, 'up')} 
-                                            disabled={idx === 0}
-                                            className="p-1.5 bg-white rounded-lg text-indigo-600 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-colors"
-                                        >
-                                            <ChevronLeft className="w-3 h-3" />
-                                        </button>
-                                        <button 
-                                            onClick={() => moveHeader(idx, 'down')} 
-                                            disabled={idx === selectedHeaders.length - 1}
-                                            className="p-1.5 bg-white rounded-lg text-indigo-600 disabled:opacity-30 hover:bg-indigo-600 hover:text-white transition-colors"
-                                        >
-                                            <ChevronLeft className="w-3 h-3 rotate-180" />
-                                        </button>
-                                    </div>
-                                    <div className="absolute -top-2 -left-2 bg-indigo-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border-2 border-white">
-                                        {idx + 1}
+                                <div key={idx} className="flex-shrink-0 w-36 bg-slate-800 rounded-2xl p-3 border border-slate-700 relative group hover:border-orange-400/50 transition-colors">
+                                    <div className="absolute -top-2 -left-2 bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-lg z-10">{idx + 1}</div>
+                                    
+                                    <p className="font-bold text-slate-200 text-xs truncate mb-4 mt-1" title={header}>{header}</p>
+                                    
+                                    <div className="flex gap-1 justify-center bg-slate-900/50 p-1 rounded-lg">
+                                        <button onClick={() => moveHeader(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-slate-700 rounded disabled:opacity-20"><ChevronLeft className="w-3 h-3 text-white" /></button>
+                                        <button onClick={() => toggleHeader(header)} className="p-1 hover:bg-red-900/50 rounded group/del"><X className="w-3 h-3 text-slate-500 group-hover/del:text-red-400" /></button>
+                                        <button onClick={() => moveHeader(idx, 'down')} disabled={idx === selectedHeaders.length - 1} className="p-1 hover:bg-slate-700 rounded disabled:opacity-20"><ArrowRight className="w-3 h-3 text-white" /></button>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    )}
+                </div>
 
-                    {/* Aperçu Tableau */}
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex-1 flex flex-col animate-in fade-in">
-                        <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                            <h3 className="font-black text-xs uppercase text-slate-500 tracking-widest flex items-center gap-2"><Eye className="w-4 h-4"/> Aperçu (5 premières lignes)</h3>
-                            <div className="flex gap-2">
-                                <button onClick={() => exportData('csv')} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] active:scale-95 transition-all uppercase tracking-widest shadow-lg shadow-emerald-100">
-                                    <FileText className="w-3 h-3"/> CSV
-                                </button>
-                                <button onClick={() => exportData('xlsx')} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[10px] active:scale-95 transition-all uppercase tracking-widest shadow-lg shadow-indigo-100">
-                                    <Download className="w-3 h-3"/> Excel
-                                </button>
-                            </div>
+                {/* Aperçu Tableau */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+                        <h3 className="font-black text-xs uppercase text-slate-500 tracking-widest flex items-center gap-2"><Eye className="w-4 h-4"/> Aperçu</h3>
+                        <div className="flex gap-2">
+                            <button onClick={() => exportData('csv')} disabled={selectedHeaders.length===0} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-black text-[10px] active:scale-95 transition-all uppercase tracking-widest shadow-lg shadow-emerald-100">
+                                <FileText className="w-3 h-3"/> CSV
+                            </button>
+                            <button onClick={() => exportData('xlsx')} disabled={selectedHeaders.length===0} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-black text-[10px] active:scale-95 transition-all uppercase tracking-widest shadow-lg shadow-indigo-100">
+                                <Download className="w-3 h-3"/> Excel
+                            </button>
                         </div>
-                        <div className="overflow-auto custom-scrollbar p-4 bg-slate-50/30 flex-1">
-                            <table className="w-full text-left text-sm border-collapse">
-                                <thead>
-                                    <tr>
-                                        {selectedHeaders.map((h, i) => (
-                                            <th key={i} className="px-4 py-3 bg-white font-black text-[10px] text-indigo-900 uppercase tracking-wider border-b-2 border-indigo-50 whitespace-nowrap sticky top-0 first:rounded-tl-lg last:rounded-tr-lg">
-                                                {h}
-                                            </th>
+                    </div>
+                    
+                    <div className="overflow-auto custom-scrollbar flex-1 bg-slate-50/30">
+                        <table className="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr>
+                                    {selectedHeaders.map((h, i) => (
+                                        <th key={i} className="px-4 py-3 bg-white font-black text-[10px] text-indigo-900 uppercase tracking-wider border-b-2 border-indigo-50 whitespace-nowrap sticky top-0 first:pl-6">
+                                            {h}
+                                        </th>
+                                    ))}
+                                    {selectedHeaders.length === 0 && <th className="p-4 text-center text-slate-400 text-xs italic font-medium">Les données apparaîtront ici...</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {previewData.map((row, rIdx) => (
+                                    <tr key={rIdx} className="hover:bg-white transition-colors group">
+                                        {selectedHeaders.map((h, cIdx) => (
+                                            <td key={cIdx} className="px-4 py-2.5 text-xs text-slate-600 font-mono border-r border-slate-50 last:border-r-0 whitespace-nowrap first:pl-6 group-hover:text-slate-900">
+                                                {row[h] !== undefined ? row[h] : ""}
+                                            </td>
                                         ))}
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {previewData.map((row, rIdx) => (
-                                        <tr key={rIdx} className="hover:bg-white transition-colors">
-                                            {selectedHeaders.map((h, cIdx) => (
-                                                <td key={cIdx} className="px-4 py-2 text-xs text-slate-600 font-mono border-r border-slate-50 last:border-r-0 whitespace-nowrap">
-                                                    {row[h] !== undefined ? row[h] : ""}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                </>
-            ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-200 rounded-[40px] bg-white p-10 text-center">
-                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                        <LayoutList className="w-8 h-8 text-slate-200" />
-                    </div>
-                    <p className="font-black text-xs uppercase tracking-widest text-slate-400 mb-2">En attente de configuration</p>
-                    <p className="text-xs text-slate-300 max-w-xs">Chargez un fichier puis cliquez sur les colonnes à gauche pour construire votre nouveau fichier.</p>
                 </div>
-            )}
+            </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
