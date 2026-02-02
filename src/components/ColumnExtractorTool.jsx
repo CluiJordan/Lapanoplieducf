@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Upload, FileSpreadsheet, Download, ChevronLeft, 
-  ArrowRight, X, Check, Eye, FileText, LayoutList, 
-  Settings, RefreshCw, ArrowUp, ArrowDown
+  ArrowRight, X, CheckCircle, Eye, FileText, LayoutList, 
+  Settings, RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const ColumnExtractorTool = ({ onBack }) => {
   const [file, setFile] = useState(null);
-  const [rawData, setRawData] = useState([]); // Données brutes de la feuille
-  const [headerRowIndex, setHeaderRowIndex] = useState(1); // Ligne des titres (1-based)
+  const [rawData, setRawData] = useState([]); 
+  const [headerRowIndex, setHeaderRowIndex] = useState(1); 
   
   const [allHeaders, setAllHeaders] = useState([]);
   const [selectedHeaders, setSelectedHeaders] = useState([]);
@@ -17,17 +17,13 @@ const ColumnExtractorTool = ({ onBack }) => {
   
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Détection automatique de la ligne de titres (Heuristique)
   const detectBestHeaderRow = (data) => {
     if (!data || data.length === 0) return 1;
     let bestRow = 0;
     let maxColumns = 0;
-
-    // On scanne les 10 premières lignes
     for (let i = 0; i < Math.min(data.length, 10); i++) {
         const row = data[i];
         if (Array.isArray(row)) {
-            // On compte les cellules non vides qui ressemblent à des titres (string)
             const filledCols = row.filter(cell => cell && typeof cell === 'string' && cell.trim().length > 0).length;
             if (filledCols > maxColumns) {
                 maxColumns = filledCols;
@@ -35,28 +31,20 @@ const ColumnExtractorTool = ({ onBack }) => {
             }
         }
     }
-    return bestRow + 1; // Retourne en 1-based pour l'utilisateur
+    return bestRow + 1; 
   };
 
   const parseFiledata = (data, rowIndex) => {
-    // rowIndex est 1-based, on convertit en 0-based
     const rIndex = rowIndex - 1;
-    
     if (rIndex < 0 || rIndex >= data.length) return;
 
-    // 1. Extraire les en-têtes
     const rawHeaders = data[rIndex];
     if (!rawHeaders) return;
 
-    // Nettoyage des headers (supprimer les vides, trimmer)
     const headers = rawHeaders.map(h => String(h || "").trim()).filter(h => h !== "");
     setAllHeaders(headers);
-    
-    // Par défaut, on vide la sélection pour éviter les conflits
     setSelectedHeaders([]); 
 
-    // 2. Préparer l'aperçu
-    // On prend les 5 lignes SUIVANT la ligne de titre
     const previewRows = data.slice(rIndex + 1, rIndex + 6).map(row => {
         let obj = {};
         rawHeaders.forEach((h, colIndex) => {
@@ -82,22 +70,16 @@ const ColumnExtractorTool = ({ onBack }) => {
       const bstr = evt.target.result;
       const wb = XLSX.read(bstr, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      
-      // On lit TOUT comme un tableau de tableaux (header: 1)
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
       setRawData(data);
-      
-      // Auto-détection
       const bestRow = detectBestHeaderRow(data);
       setHeaderRowIndex(bestRow);
       parseFiledata(data, bestRow);
-      
       setIsProcessing(false);
     };
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // Re-parser si l'utilisateur change la ligne de titres manuellement
   useEffect(() => {
     if (rawData.length > 0) {
         parseFiledata(rawData, headerRowIndex);
@@ -124,12 +106,8 @@ const ColumnExtractorTool = ({ onBack }) => {
 
   const exportData = (type) => {
     if (selectedHeaders.length === 0) return;
-
-    // On reconstruit les données complètes à partir du rawData et de la ligne de titre actuelle
     const rIndex = headerRowIndex - 1;
     const rawHeaders = rawData[rIndex];
-    
-    // Mapping pour savoir quel header correspond à quel index de colonne dans le rawData
     const colIndices = {};
     rawHeaders.forEach((h, idx) => {
         const cleanH = String(h || "").trim();
@@ -158,7 +136,6 @@ const ColumnExtractorTool = ({ onBack }) => {
 
   return (
     <div className="animate-in slide-in-from-right-4 duration-500">
-      {/* Header Navigation */}
       <div className="flex items-center gap-3 mb-8">
         <button onClick={onBack} className="p-2.5 bg-white rounded-full border border-slate-200 hover:bg-slate-100 active:scale-90 transition-all shadow-sm">
             <ChevronLeft className="w-6 h-6 text-slate-700" />
@@ -170,7 +147,6 @@ const ColumnExtractorTool = ({ onBack }) => {
       </div>
 
       {!file ? (
-        /* VUE 1 : UPLOAD GRAND FORMAT */
         <div className="max-w-4xl mx-auto mt-10">
             <div className={`h-80 rounded-[40px] border-4 border-dashed transition-all flex flex-col items-center justify-center gap-6 group hover:border-orange-300 hover:bg-orange-50/30 border-slate-200 bg-white`}>
                 <div className="w-24 h-24 bg-orange-50 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
@@ -187,13 +163,9 @@ const ColumnExtractorTool = ({ onBack }) => {
             </div>
         </div>
       ) : (
-        /* VUE 2 : INTERFACE DE TRAVAIL */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-auto lg:h-[750px]">
             
-            {/* COLONNE GAUCHE : CONFIGURATION */}
             <div className="lg:col-span-5 flex flex-col gap-6 h-full">
-                
-                {/* Carte Fichier & Réglages */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col gap-4 shrink-0">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                         <div className="flex items-center gap-3">
@@ -206,7 +178,6 @@ const ColumnExtractorTool = ({ onBack }) => {
                         <div className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold text-slate-500">{allHeaders.length} Colonnes</div>
                     </div>
 
-                    {/* Réglage Ligne des Titres */}
                     <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2 text-slate-500">
                             <Settings className="w-4 h-4" />
@@ -227,7 +198,6 @@ const ColumnExtractorTool = ({ onBack }) => {
                     </div>
                 </div>
 
-                {/* Liste des Colonnes (Scrollable) */}
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col min-h-0">
                     <div className="flex justify-between items-center mb-4 shrink-0">
                         <h3 className="font-black text-xs uppercase text-slate-400 tracking-widest">Colonnes Disponibles</h3>
@@ -254,17 +224,13 @@ const ColumnExtractorTool = ({ onBack }) => {
                 </div>
             </div>
 
-            {/* COLONNE DROITE : ORDRE & APERÇU */}
             <div className="lg:col-span-7 flex flex-col gap-6 h-full">
-                
-                {/* Zone de Tri Visuelle */}
                 <div className="bg-slate-900 rounded-3xl p-6 shadow-2xl text-white shrink-0">
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
                             <LayoutList className="w-5 h-5 text-orange-400" />
                             <h3 className="font-black text-sm uppercase tracking-widest">Fichier de Sortie ({selectedHeaders.length} cols)</h3>
                         </div>
-                        {selectedHeaders.length > 0 && <span className="text-[10px] font-mono bg-slate-800 px-2 py-1 rounded text-slate-400">Glisser pour trier (Bientôt)</span>}
                     </div>
 
                     {selectedHeaders.length === 0 ? (
@@ -276,9 +242,7 @@ const ColumnExtractorTool = ({ onBack }) => {
                             {selectedHeaders.map((header, idx) => (
                                 <div key={idx} className="flex-shrink-0 w-36 bg-slate-800 rounded-2xl p-3 border border-slate-700 relative group hover:border-orange-400/50 transition-colors">
                                     <div className="absolute -top-2 -left-2 bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-lg z-10">{idx + 1}</div>
-                                    
                                     <p className="font-bold text-slate-200 text-xs truncate mb-4 mt-1" title={header}>{header}</p>
-                                    
                                     <div className="flex gap-1 justify-center bg-slate-900/50 p-1 rounded-lg">
                                         <button onClick={() => moveHeader(idx, 'up')} disabled={idx === 0} className="p-1 hover:bg-slate-700 rounded disabled:opacity-20"><ChevronLeft className="w-3 h-3 text-white" /></button>
                                         <button onClick={() => toggleHeader(header)} className="p-1 hover:bg-red-900/50 rounded group/del"><X className="w-3 h-3 text-slate-500 group-hover/del:text-red-400" /></button>
@@ -290,7 +254,6 @@ const ColumnExtractorTool = ({ onBack }) => {
                     )}
                 </div>
 
-                {/* Aperçu Tableau */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
                     <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
                         <h3 className="font-black text-xs uppercase text-slate-500 tracking-widest flex items-center gap-2"><Eye className="w-4 h-4"/> Aperçu</h3>
