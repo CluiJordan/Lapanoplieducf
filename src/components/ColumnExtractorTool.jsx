@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Upload, FileSpreadsheet, Download, ChevronLeft, 
   ArrowRight, X, CheckCircle, Eye, FileText, LayoutList, 
-  Settings, RefreshCw
+  Settings, RefreshCw, Plus
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -15,22 +15,106 @@ const ColumnExtractorTool = ({ onBack }) => {
   const [previewData, setPreviewData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // États pour Ajout Colonne Vide
+  const [isAddColModalOpen, setIsAddColModalOpen] = useState(false);
+  const [newColName, setNewColName] = useState('');
+
   const detectBestHeaderRow = (data) => { if (!data || data.length === 0) return 1; let bestRow = 0; let maxColumns = 0; for (let i = 0; i < Math.min(data.length, 10); i++) { const row = data[i]; if (Array.isArray(row)) { const filledCols = row.filter(cell => cell && typeof cell === 'string' && cell.trim().length > 0).length; if (filledCols > maxColumns) { maxColumns = filledCols; bestRow = i; } } } return bestRow + 1; };
-  const parseFiledata = (data, rowIndex) => { const rIndex = rowIndex - 1; if (rIndex < 0 || rIndex >= data.length) return; const rawHeaders = data[rIndex]; if (!rawHeaders) return; const headers = rawHeaders.map(h => String(h || "").trim()).filter(h => h !== ""); setAllHeaders(headers); setSelectedHeaders([]); const previewRows = data.slice(rIndex + 1, rIndex + 6).map(row => { let obj = {}; rawHeaders.forEach((h, colIndex) => { const cleanH = String(h || "").trim(); if (cleanH) { obj[cleanH] = row[colIndex]; } }); return obj; }); setPreviewData(previewRows); };
-  const handleFileUpload = (e) => { const uploadedFile = e.target.files[0]; if (!uploadedFile) return; setFile(uploadedFile); setIsProcessing(true); const reader = new FileReader(); reader.onload = (evt) => { const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' }); const ws = wb.Sheets[wb.SheetNames[0]]; const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }); setRawData(data); const bestRow = detectBestHeaderRow(data); setHeaderRowIndex(bestRow); parseFiledata(data, bestRow); setIsProcessing(false); }; reader.readAsBinaryString(uploadedFile); };
-  useEffect(() => { if (rawData.length > 0) { parseFiledata(rawData, headerRowIndex); } }, [headerRowIndex]);
+  
+  const parseFiledata = (data, rowIndex, keepSelection = false) => { 
+    const rIndex = rowIndex - 1; 
+    if (rIndex < 0 || rIndex >= data.length) return; 
+    const rawHeaders = data[rIndex]; 
+    if (!rawHeaders) return; 
+    const headers = rawHeaders.map(h => String(h || "").trim()).filter(h => h !== "");
+    setAllHeaders(headers); 
+    if (!keepSelection) setSelectedHeaders([]); 
+
+    const previewRows = data.slice(rIndex + 1, rIndex + 6).map(row => { 
+        let obj = {}; 
+        rawHeaders.forEach((h, colIndex) => { 
+            const cleanH = String(h || "").trim(); 
+            if (cleanH) { obj[cleanH] = row[colIndex]; } 
+        });
+        // Gérer les colonnes virtuelles ajoutées manuellement
+        Object.keys(row).forEach(key => {
+            if (!rawHeaders.includes(key) && isNaN(key)) { obj[key] = row[key]; }
+        });
+        return obj; 
+    }); 
+    setPreviewData(previewRows); 
+  };
+
+  const handleFileUpload = (e) => { 
+    const uploadedFile = e.target.files[0]; 
+    if (!uploadedFile) return; 
+    setFile(uploadedFile); 
+    setIsProcessing(true); 
+    const reader = new FileReader(); 
+    reader.onload = (evt) => { 
+        const bstr = evt.target.result; 
+        const wb = XLSX.read(bstr, { type: 'binary' }); 
+        const ws = wb.Sheets[wb.SheetNames[0]]; 
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }); 
+        setRawData(data); 
+        const bestRow = detectBestHeaderRow(data); 
+        setHeaderRowIndex(bestRow); 
+        parseFiledata(data, bestRow); 
+        setIsProcessing(false); 
+    }; 
+    reader.readAsBinaryString(uploadedFile); 
+  };
+
+  useEffect(() => { if (rawData.length > 0) { parseFiledata(rawData, headerRowIndex, true); } }, [headerRowIndex, rawData]);
+
   const toggleHeader = (header) => { if (selectedHeaders.includes(header)) { setSelectedHeaders(selectedHeaders.filter(h => h !== header)); } else { setSelectedHeaders([...selectedHeaders, header]); } };
-  const moveHeader = (index, direction) => { const newHeaders = [...selectedHeaders]; if (direction === 'up' && index > 0) { [newHeaders[index], newHeaders[index - 1]] = [newHeaders[index - 1], newHeaders[index]]; } else if (direction === 'down' && index < newHeaders.length - 1) { [newHeaders[index], newHeaders[index + 1]] = [newHeaders[index + 1], newHeaders[index]]; } setSelectedHeaders(newHeaders); };
-  const exportData = (type) => { if (selectedHeaders.length === 0) return; const rIndex = headerRowIndex - 1; const rawHeaders = rawData[rIndex]; const colIndices = {}; rawHeaders.forEach((h, idx) => { const cleanH = String(h || "").trim(); if (cleanH && selectedHeaders.includes(cleanH)) { colIndices[cleanH] = idx; } }); const rowsToExport = rawData.slice(rIndex + 1).map(row => { const newObj = {}; selectedHeaders.forEach(header => { const colIdx = colIndices[header]; newObj[header] = row[colIdx]; }); return newObj; }); const ws = XLSX.utils.json_to_sheet(rowsToExport, { header: selectedHeaders }); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Extrait"); const fileName = `extrait_${file.name.split('.')[0]}`; if (type === 'csv') XLSX.writeFile(wb, `${fileName}.csv`); else XLSX.writeFile(wb, `${fileName}.xlsx`); };
+  
+  const moveHeader = (index, direction) => { 
+    const newHeaders = [...selectedHeaders]; 
+    if (direction === 'up' && index > 0) { [newHeaders[index], newHeaders[index - 1]] = [newHeaders[index - 1], newHeaders[index]]; } 
+    else if (direction === 'down' && index < newHeaders.length - 1) { [newHeaders[index], newHeaders[index + 1]] = [newHeaders[index + 1], newHeaders[index]]; } 
+    setSelectedHeaders(newHeaders); 
+  };
+
+  const addEmptyColumn = () => {
+    if(!newColName.trim()) return;
+    const name = newColName.trim();
+    if(!allHeaders.includes(name)) { setAllHeaders([...allHeaders, name]); }
+    if(!selectedHeaders.includes(name)) { setSelectedHeaders([...selectedHeaders, name]); }
+    setIsAddColModalOpen(false); setNewColName('');
+  };
+
+  const exportData = (type) => { 
+    if (selectedHeaders.length === 0) return; 
+    const rIndex = headerRowIndex - 1; 
+    const rawHeaders = rawData[rIndex]; 
+    const colIndices = {}; 
+    rawHeaders.forEach((h, idx) => { const cleanH = String(h || "").trim(); if (cleanH) colIndices[cleanH] = idx; }); 
+
+    const rowsToExport = rawData.slice(rIndex + 1).map(row => { 
+        const newObj = {}; 
+        selectedHeaders.forEach(header => { 
+            if(colIndices[header] !== undefined) { newObj[header] = row[colIndices[header]]; } 
+            else { newObj[header] = ""; }
+        }); 
+        return newObj; 
+    }); 
+    
+    const ws = XLSX.utils.json_to_sheet(rowsToExport, { header: selectedHeaders }); 
+    const wb = XLSX.utils.book_new(); 
+    XLSX.utils.book_append_sheet(wb, ws, "Extrait"); 
+    const fileName = `extrait_${file.name.split('.')[0]}`; 
+    if (type === 'csv') XLSX.writeFile(wb, `${fileName}.csv`); 
+    else XLSX.writeFile(wb, `${fileName}.xlsx`); 
+  };
 
   return (
-    <div className="animate-in slide-in-from-right-4 duration-500">
+    <div className="animate-in slide-in-from-right-4 duration-500 relative">
       <div className="flex items-center gap-4 mb-8">
         <button onClick={onBack} className="p-3 bg-white rounded-full border border-slate-200 hover:bg-slate-100 active:scale-90 transition-all shadow-sm">
             <ChevronLeft className="w-6 h-6 text-slate-700" />
         </button>
         <div className="flex items-center gap-3">
-            {/* TAILLE RÉDUITE ICI : h-10 w-10 */}
             <img src="/favicon.png" className="h-10 w-10 object-contain" alt="icon" />
             <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">Extracteur</h2>
         </div>
@@ -38,7 +122,7 @@ const ColumnExtractorTool = ({ onBack }) => {
 
       {!file ? (
         <div className="max-w-4xl mx-auto mt-10">
-            <div className={`h-80 rounded-[40px] border-4 border-dashed transition-all flex flex-col items-center justify-center gap-6 group hover:border-orange-300 hover:bg-orange-50/30 border-slate-200 bg-white`}>
+             <div className={`h-80 rounded-[40px] border-4 border-dashed transition-all flex flex-col items-center justify-center gap-6 group hover:border-orange-300 hover:bg-orange-50/30 border-slate-200 bg-white`}>
                 <div className="w-24 h-24 bg-orange-50 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
                     <LayoutList className="w-10 h-10 text-orange-500" />
                 </div>
@@ -63,11 +147,18 @@ const ColumnExtractorTool = ({ onBack }) => {
                         </div>
                         <div className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold text-slate-500">{allHeaders.length} Colonnes</div>
                     </div>
+                    
+                    {/* Actions Simplifiées */}
+                    <button onClick={() => setIsAddColModalOpen(true)} className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-[10px] uppercase transition-colors">
+                        <Plus className="w-4 h-4"/> Ajouter une colonne vide
+                    </button>
+
                     <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2 text-slate-500"><Settings className="w-4 h-4" /><span className="text-xs font-black uppercase tracking-widest">Ligne des titres :</span></div>
                         <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-400">N°</span><input type="number" min="1" max="100" value={headerRowIndex} onChange={(e) => setHeaderRowIndex(parseInt(e.target.value) || 1)} className="w-16 h-10 text-center font-black text-indigo-600 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none"/><button onClick={() => parseFiledata(rawData, headerRowIndex)} className="p-2 bg-white border border-slate-200 rounded-xl hover:text-indigo-600 active:rotate-180 transition-all"><RefreshCw className="w-4 h-4"/></button></div>
                     </div>
                 </div>
+
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col min-h-0">
                     <div className="flex justify-between items-center mb-4 shrink-0">
                         <h3 className="font-black text-xs uppercase text-slate-400 tracking-widest">Colonnes Disponibles</h3>
@@ -78,6 +169,7 @@ const ColumnExtractorTool = ({ onBack }) => {
                     </div>
                 </div>
             </div>
+
             <div className="lg:col-span-7 flex flex-col gap-6 h-full">
                 <div className="bg-slate-900 rounded-3xl p-6 shadow-2xl text-white shrink-0">
                     <div className="flex justify-between items-center mb-4"><div className="flex items-center gap-2"><LayoutList className="w-5 h-5 text-orange-400" /><h3 className="font-black text-sm uppercase tracking-widest">Sortie ({selectedHeaders.length} cols)</h3></div></div>
@@ -92,6 +184,16 @@ const ColumnExtractorTool = ({ onBack }) => {
                         <table className="w-full text-left text-sm border-collapse"><thead><tr>{selectedHeaders.map((h, i) => ( <th key={i} className="px-4 py-3 bg-white font-black text-[10px] text-indigo-900 uppercase tracking-wider border-b-2 border-indigo-50 whitespace-nowrap sticky top-0 first:pl-6">{h}</th> ))}</tr></thead><tbody className="divide-y divide-slate-100">{previewData.map((row, rIdx) => ( <tr key={rIdx} className="hover:bg-white transition-colors group">{selectedHeaders.map((h, cIdx) => ( <td key={cIdx} className="px-4 py-2.5 text-xs text-slate-600 font-mono border-r border-slate-50 last:border-r-0 whitespace-nowrap first:pl-6 group-hover:text-slate-900">{row[h] !== undefined ? row[h] : ""}</td> ))}</tr> ))}</tbody></table>
                     </div>
                 </div>
+            </div>
+        </div>
+      )}
+
+      {isAddColModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-[32px] p-8 w-full max-w-sm animate-in zoom-in-95 border border-white">
+                <h3 className="text-xl font-black text-slate-800 mb-4 uppercase">Nouvelle Colonne</h3>
+                <input autoFocus type="text" placeholder="Nom (ex: Observations)" value={newColName} onChange={(e) => setNewColName(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl mb-6 font-bold outline-none focus:border-indigo-500"/>
+                <div className="flex gap-2"><button onClick={() => setIsAddColModalOpen(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500 hover:bg-slate-200">Annuler</button><button onClick={addEmptyColumn} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200">Ajouter</button></div>
             </div>
         </div>
       )}
