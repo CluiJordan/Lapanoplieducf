@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { LayoutGrid, Minimize2, ArrowRightLeft, Rocket, Heart, Lightbulb, Scissors } from 'lucide-react';
+import { LayoutGrid, Minimize2, ArrowRightLeft, Heart, Lightbulb, Scissors, LayoutList, FileSpreadsheet, Rocket } from 'lucide-react';
 import SuggestionModal from './components/SuggestionModal';
 import ComparatorTool from './components/ComparatorTool';
 import CompressorTool from './components/CompressorTool';
+import ColumnExtractorTool from './components/ColumnExtractorTool';
 
 const App = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -12,6 +13,7 @@ const App = () => {
     switch(currentView) {
         case 'comparator': return <ComparatorTool onBack={() => setCurrentView('dashboard')} />;
         case 'compressor': return <CompressorTool onBack={() => setCurrentView('dashboard')} />;
+        case 'extractor': return <ColumnExtractorTool onBack={() => setCurrentView('dashboard')} />;
         default: return (
             <div className="animate-in">
                 {/* Header Dashboard */}
@@ -27,8 +29,10 @@ const App = () => {
                     </p>
                 </header>
 
-                {/* Grid des Capsules */}
-                <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                {/* Grid des Capsules (2x2 pour l'équilibre) */}
+                <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto px-4">
+                    
+                    {/* 1. Capsule Comparateur */}
                     <div 
                         onClick={() => setCurrentView('comparator')}
                         className="group bg-white p-8 rounded-3xl shadow-xl hover:shadow-2xl border border-slate-100 cursor-pointer transition-all transform hover:-translate-y-2 relative overflow-hidden"
@@ -36,18 +40,19 @@ const App = () => {
                         <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                             <LayoutGrid className="w-32 h-32 text-indigo-600" />
                         </div>
-                        <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                            <LayoutGrid className="w-8 h-8" />
+                        <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                            <LayoutGrid className="w-7 h-7" />
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-800 mb-3 group-hover:text-indigo-700 transition-colors">Comparateur de Listes</h3>
-                        <p className="text-slate-500 mb-6 leading-relaxed">
-                            Réconciliez deux fichiers Excel. Identifiez les présences et les manquants par classe. Générez des rapports PDF/CSV.
+                        <h3 className="text-xl font-bold text-slate-800 mb-3 group-hover:text-indigo-700 transition-colors">Comparateur</h3>
+                        <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                            Identifiez les présences et manquants entre deux listes Excel (Par classe).
                         </p>
-                        <div className="flex items-center text-indigo-600 font-bold group-hover:underline">
-                            Lancer l'outil <ArrowRightLeft className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                        <div className="flex items-center text-indigo-600 text-xs font-black uppercase tracking-widest group-hover:underline">
+                            Lancer <ArrowRightLeft className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
 
+                    {/* 2. Capsule Compresseur */}
                     <div 
                         onClick={() => setCurrentView('compressor')}
                         className="group bg-white p-8 rounded-3xl shadow-xl hover:shadow-2xl border border-slate-100 cursor-pointer transition-all transform hover:-translate-y-2 relative overflow-hidden"
@@ -55,34 +60,56 @@ const App = () => {
                         <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                             <Minimize2 className="w-32 h-32 text-teal-600" />
                         </div>
-                        <div className="w-16 h-16 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:scale-110 transition-transform duration-300">
-                            <Minimize2 className="w-8 h-8" />
+                        <div className="w-14 h-14 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                            <Minimize2 className="w-7 h-7" />
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-800 mb-3 group-hover:text-teal-700 transition-colors">Compresseur de Fichiers</h3>
-                        <p className="text-slate-500 mb-6 leading-relaxed">
-                            Réduisez drastiquement le poids de vos fichiers PDF et Images (JPG/PNG) en définissant une taille cible.
+                        <h3 className="text-xl font-bold text-slate-800 mb-3 group-hover:text-teal-700 transition-colors">Compresseur</h3>
+                        <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                            Réduisez le poids de vos fichiers PDF et Images intelligemment.
                         </p>
-                        <div className="flex items-center text-teal-600 font-bold group-hover:underline">
-                            Lancer l'outil <Scissors className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                        <div className="flex items-center text-teal-600 text-xs font-black uppercase tracking-widest group-hover:underline">
+                            Lancer <Scissors className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
 
-                    <div className="group bg-slate-50 p-8 rounded-3xl border-2 border-dashed border-slate-200 hover:border-indigo-200 transition-all relative overflow-hidden flex flex-col items-center justify-center text-center opacity-75 hover:opacity-100">
-                         <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                            <Rocket className="w-8 h-8" />
+                    {/* 3. Capsule Extracteur (NOUVEAU) */}
+                    <div 
+                        onClick={() => setCurrentView('extractor')}
+                        className="group bg-white p-8 rounded-3xl shadow-xl hover:shadow-2xl border border-slate-100 cursor-pointer transition-all transform hover:-translate-y-2 relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <LayoutList className="w-32 h-32 text-orange-600" />
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-400 mb-3 group-hover:text-indigo-500 transition-colors">Outil à venir...</h3>
-                        <p className="text-slate-400 mb-6 leading-relaxed">
+                        <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mb-6 shadow-inner group-hover:scale-110 transition-transform duration-300">
+                            <FileSpreadsheet className="w-7 h-7" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-3 group-hover:text-orange-700 transition-colors">Extracteur</h3>
+                        <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                            Sélectionnez et réorganisez les colonnes de vos fichiers Excel pour ne garder que l'utile.
+                        </p>
+                        <div className="flex items-center text-orange-600 text-xs font-black uppercase tracking-widest group-hover:underline">
+                            Lancer <LayoutList className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </div>
+
+                    {/* 4. Capsule Bientôt Disponible (PERMANENTE) */}
+                    <div className="group bg-slate-50 p-8 rounded-3xl border-2 border-dashed border-slate-200 hover:border-indigo-200 transition-all relative overflow-hidden flex flex-col items-center justify-center text-center opacity-75 hover:opacity-100">
+                         <div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                            <Rocket className="w-7 h-7" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-400 mb-3 group-hover:text-indigo-500 transition-colors">Outil à venir...</h3>
+                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
                             D'autres fonctionnalités sont en préparation pour enrichir la suite. Une idée à suggérer ?
                         </p>
-                         <div className="inline-flex items-center text-slate-400 font-bold text-sm bg-slate-100 px-3 py-1 rounded-full">
+                         <div className="inline-flex items-center text-slate-400 font-bold text-[10px] uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-full">
                             Bientôt disponible
                         </div>
                     </div>
+
                 </div>
 
-                {/* Donation Section - VERSION AFFINÉE ET SIMPLIFIÉE */}
-                <div className="mt-10 bg-white rounded-3xl border border-slate-200 shadow-sm max-w-3xl mx-auto overflow-hidden">
+                {/* Donation Section */}
+                <div className="mt-16 bg-white rounded-3xl border border-slate-200 shadow-sm max-w-3xl mx-auto overflow-hidden">
                     <div className="p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="flex items-center gap-5 text-left">
                              <div className="hidden md:flex p-3 bg-red-50 text-red-500 rounded-2xl shrink-0">
