@@ -1,13 +1,13 @@
 import React from 'react';
-import { X, HelpCircle, LayoutGrid, Minimize2, LayoutList } from 'lucide-react';
+import { X, HelpCircle, LayoutGrid, Minimize2, LayoutList, CheckCircle2 } from 'lucide-react';
 
 const HelpModal = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl relative overflow-hidden border border-white animate-in zoom-in-95">
+      <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl relative overflow-hidden border border-white animate-in zoom-in-95 max-h-[90vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
                 <HelpCircle className="w-6 h-6" />
@@ -19,10 +19,10 @@ const HelpModal = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Contenu */}
-        <div className="p-8 grid gap-8">
+        {/* Contenu avec défilement si nécessaire */}
+        <div className="p-8 grid gap-8 overflow-y-auto custom-scrollbar">
             
-            {/* Outil 1 */}
+            {/* Outil 1 : Comparateur */}
             <div className="flex gap-4 items-start">
                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shrink-0 mt-1">
                     <LayoutGrid className="w-6 h-6" />
@@ -35,7 +35,7 @@ const HelpModal = ({ onClose }) => {
                 </div>
             </div>
 
-            {/* Outil 2 */}
+            {/* Outil 2 : Compresseur */}
             <div className="flex gap-4 items-start">
                 <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl shrink-0 mt-1">
                     <Minimize2 className="w-6 h-6" />
@@ -48,7 +48,7 @@ const HelpModal = ({ onClose }) => {
                 </div>
             </div>
 
-            {/* Outil 3 */}
+            {/* Outil 3 : Extracteur */}
             <div className="flex gap-4 items-start">
                 <div className="p-3 bg-orange-50 text-orange-600 rounded-2xl shrink-0 mt-1">
                     <LayoutList className="w-6 h-6" />
@@ -56,14 +56,28 @@ const HelpModal = ({ onClose }) => {
                 <div>
                     <h4 className="font-black text-slate-800 text-lg mb-1">Extracteur</h4>
                     <p className="text-slate-500 text-sm leading-relaxed">
-                        Permet de nettoyer un fichier Excel complexe. Vous sélectionnez uniquement les colonnes dont vous avez besoin (ex: Nom, Matricule, Moyenne) pour créer un nouveau fichier propre prêt à l'emploi.
+                        Permet de nettoyer un fichier Excel complexe. Vous sélectionnez uniquement les colonnes dont vous avez besoin pour créer un nouveau fichier propre prêt à l'emploi.
+                    </p>
+                </div>
+            </div>
+
+            {/* Outil 4 : Audit-Moyenne (NOUVEAU) */}
+            <div className="flex gap-4 items-start">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shrink-0 mt-1">
+                    <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                    <h4 className="font-black text-slate-800 text-lg mb-1">Audit-Moyenne</h4>
+                    <p className="text-slate-500 text-sm leading-relaxed">
+                        Analyse vos fichiers de notes pour détecter les incohérences. Il vérifie l'application correcte des codes spéciaux (21, 22) selon le niveau et valide les calculs de moyennes.
                     </p>
                 </div>
             </div>
 
         </div>
 
-        <div className="bg-slate-50 px-8 py-6 text-center">
+        {/* Footer */}
+        <div className="bg-slate-50 px-8 py-6 text-center shrink-0">
             <button onClick={onClose} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95">
                 C'est compris
             </button>
