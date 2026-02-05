@@ -1,270 +1,453 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
-  FileSpreadsheet, Download, ChevronLeft, 
-  Search, Filter, FileText, CheckCircle, AlertCircle, Play, Users
+  ChevronLeft, ArrowRightLeft, FileSpreadsheet, 
+  CheckCircle2, XCircle, AlertTriangle, Download, Search, Settings, FileText, Filter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable'; // CHANGEMENT ICI : Import direct
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const ComparatorTool = ({ onBack }) => {
   const [file1, setFile1] = useState(null);
   const [file2, setFile2] = useState(null);
+  
   const [data1, setData1] = useState([]);
   const [data2, setData2] = useState([]);
-  const [commonData, setCommonData] = useState([]);
-  const [missingByClass, setMissingByClass] = useState({});
-  const [hasProcessed, setHasProcessed] = useState(false);
-  const [availableClasses, setAvailableClasses] = useState([]);
-  const [selectedClasses, setSelectedClasses] = useState(new Set());
+  
+  const [columns1, setColumns1] = useState([]);
+  const [columns2, setColumns2] = useState([]);
+  
+  const [selectedKey1, setSelectedKey1] = useState('');
+  const [selectedKey2, setSelectedKey2] = useState('');
+
+  const [classCol1, setClassCol1] = useState(''); 
+  const [availableClasses, setAvailableClasses] = useState([]); 
+  const [selectedClasses, setSelectedClasses] = useState([]); 
+
+  const [displayMapping1, setDisplayMapping1] = useState({});
+  const [displayMapping2, setDisplayMapping2] = useState({});
+
+  const [comparisonResult, setComparisonResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [viewMode, setViewMode] = useState('missing');
+  const [activeTab, setActiveTab] = useState('missing'); 
 
-  const classStats = useMemo(() => {
-    if (!hasProcessed) return {};
-    const stats = {};
-    availableClasses.forEach(cls => {
-      const present = commonData.filter(d => d.Classe === cls).length;
-      const missing = (missingByClass[cls] || []).length;
-      stats[cls] = { present, missing };
+  // --- 1. DÉTECTION ---
+  const findHeaderRow = (ws) => {
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const maxRow = Math.min(range.e.r, 20); 
+    let bestRow = 0;
+    let maxScore = 0;
+    const keywords = ['matricule', 'nom', 'prenom', 'classe', 'code', 'eleve'];
+
+    for (let R = 0; R <= maxRow; ++R) {
+        let score = 0;
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = { c: C, r: R };
+            const cell = ws[XLSX.utils.encode_cell(cellAddress)];
+            if (cell && cell.v) {
+                const val = String(cell.v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                if (keywords.some(k => val.includes(k))) score++;
+            }
+        }
+        if (score > maxScore) {
+            maxScore = score;
+            bestRow = R;
+        }
+    }
+    return bestRow;
+  };
+
+  const identifyDisplayColumns = (cols) => {
+    const cleanStr = (s) => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
+    const findCol = (keywords) => cols.find(c => {
+        const clean = cleanStr(c);
+        return keywords.some(k => clean.includes(k));
     });
-    return stats;
-  }, [hasProcessed, availableClasses, commonData, missingByClass]);
 
-  const findBestKey = (obj, searchTerms) => { if (!obj) return null; return Object.keys(obj).find(key => searchTerms.some(term => key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(term))); };
-  
-  const handleFileUpload = (e, fileNum) => { 
-    const file = e.target.files[0]; if (!file) return; 
-    fileNum === 1 ? setFile1(file) : setFile2(file); 
-    const reader = new FileReader(); 
-    reader.onload = (evt) => { 
-        const wb = XLSX.read(evt.target.result, { type: 'binary' }); 
-        const ws = wb.Sheets[wb.SheetNames[0]]; 
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); 
-        const keys = data[0].map(k => k ? k.toString().trim() : ""); 
-        const jsonData = data.slice(1).map(row => { let obj = {}; keys.forEach((key, i) => { if(key) obj[key] = row[i]; }); return obj; }); 
-        if (fileNum === 1) { 
-            setData1(jsonData); setHasProcessed(false); 
-            const classKeyFound = findBestKey(jsonData[0] || {}, ['classe', 'class', 'groupe', 'div']); 
-            if (classKeyFound) { 
-                const sorted = Array.from(new Set(jsonData.map(r => String(r[classKeyFound] || "").trim()).filter(Boolean))).sort(); 
-                setAvailableClasses(sorted); setSelectedClasses(new Set(sorted)); 
-            } 
-        } else { setData2(jsonData); setHasProcessed(false); } 
-    }; 
-    reader.readAsBinaryString(file); 
+    return {
+        matricule: findCol(['matricule', 'mat', 'id', 'code', 'numero']),
+        nom: findCol(['nom', 'name', 'family']),
+        prenom: findCol(['prenom', 'firstname', 'first']), 
+        classe: findCol(['classe', 'class', 'niv', 'groupe'])
+    };
   };
 
-  const processComparison = () => { 
-    setIsProcessing(true); 
-    setTimeout(() => { 
-        if (!data1.length || !data2.length) { setIsProcessing(false); return; } 
-        const kMat1 = findBestKey(data1[0], ['matricule', 'id', 'mat']); 
-        const kClasse1 = findBestKey(data1[0], ['classe', 'class', 'groupe']); 
-        const kNom1 = findBestKey(data1[0], ['nom', 'surname']); 
-        const kPrenom1 = findBestKey(data1[0], ['prenom', 'first', 'name']); 
-        
-        const data1Map = new Map(data1.map(item => [String(item[kMat1] || "").toLowerCase().trim(), item])); 
-        
-        const intersections = data2.map(row => { 
-            const mat = String(row[findBestKey(row, ['matricule', 'id', 'mat'])] || "").toLowerCase().trim(); 
-            const ref = data1Map.get(mat); 
-            if (ref) { 
-                const cls = String(ref[kClasse1] || "N/A").trim(); 
-                return { Matricule: mat.toUpperCase(), Nom: (row[findBestKey(row, ['nom'])] || ref[kNom1] || "N/A").toUpperCase(), Prenom: row[findBestKey(row, ['prenom', 'name'])] || ref[kPrenom1] || "N/A", Classe: cls }; 
-            } return null; 
-        }).filter(Boolean); 
-        
-        const missing = {}; 
-        availableClasses.forEach(cls => { 
-            missing[cls] = data1.filter(row => String(row[kClasse1] || "").trim() === cls && !data2.some(r2 => String(r2[findBestKey(r2, ['matricule'])] || "").toLowerCase().trim() === String(row[kMat1]).toLowerCase().trim())).map(row => ({ Matricule: row[kMat1], Nom: String(row[kNom1]).toUpperCase(), Prenom: row[kPrenom1], Classe: cls })); 
-        }); 
-        
-        setCommonData(intersections); setMissingByClass(missing); setHasProcessed(true); setIsProcessing(false); setViewMode('missing'); 
-    }, 800); 
+  const normalizeValue = (val) => {
+    if (val === null || val === undefined) return "";
+    return String(val).trim().toUpperCase();
   };
 
-  // --- CORRECTION APPEL AUTOTABLE ---
-  const exportToPDF = () => { 
-      const doc = new jsPDF(); 
-      doc.setFontSize(10); 
-      doc.text("LAPANOPLIEDUCF", 14, 15); 
-      doc.setFontSize(16); 
-      doc.text(`Rapport : ${viewMode === 'present' ? 'Présents' : 'Manquants'}`, 14, 25); 
+  // --- 2. IMPORTATION ---
+  const handleFileUpload = (e, setFile, setData, setColumns, setKey, setDisplayMapping, isFile1 = false) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    
+    setFile(f);
+    setComparisonResult(null); 
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const wb = XLSX.read(evt.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
       
-      let finalY = 35; 
-      const sortedClasses = Array.from(selectedClasses).sort();
+      const headerRowIndex = findHeaderRow(ws);
+      const jsonData = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex, defval: "" });
       
-      sortedClasses.forEach(cls => { 
-          const list = viewMode === 'present' ? commonData.filter(d => d.Classe === cls) : missingByClass[cls]; 
-          
-          if (list && list.length > 0) { 
-              if (finalY > 270) { doc.addPage(); finalY = 20; } 
-              doc.setFontSize(12);
-              doc.setTextColor(100);
-              doc.text(`Classe : ${cls}`, 14, finalY); 
-              
-              // UTILISATION DE LA FONCTION IMPORTÉE DIRECTEMENT
-              autoTable(doc, { 
-                  startY: finalY + 2, 
-                  head: [['Matricule', 'Nom', 'Prénoms']], 
-                  body: list.map(s => [s.Matricule, s.Nom, s.Prenom]), 
-                  theme: 'grid', 
-                  headStyles: {fillColor: [63, 63, 70]}, 
-                  styles: {fontSize: 9},
-                  margin: { left: 14, right: 14 }
-              }); 
-              
-              finalY = doc.lastAutoTable.finalY + 15; 
-          } 
-      }); 
-      
-      doc.save(`rapport_${viewMode}_lapanoplie.pdf`); 
+      if (jsonData.length > 0) {
+        setData(jsonData);
+        const cols = Object.keys(jsonData[0]);
+        setColumns(cols);
+
+        const displayMap = identifyDisplayColumns(cols);
+        setDisplayMapping(displayMap);
+
+        setKey(displayMap.matricule || cols[0]);
+
+        if (isFile1 && displayMap.classe) {
+            handleClassColumnSelect(displayMap.classe, jsonData);
+        }
+      }
+    };
+    reader.readAsBinaryString(f);
   };
-  
-  const exportToExcel = () => { 
-      const exportData = viewMode === 'present' ? commonData : Object.values(missingByClass).flat(); 
-      const ws = XLSX.utils.json_to_sheet(exportData); 
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Resultats"); 
-      XLSX.writeFile(wb, `export_${viewMode}_lapanoplie.xlsx`); 
+
+  // --- 3. GESTION DES CLASSES ---
+  const handleClassColumnSelect = (colName, sourceData = data1) => {
+    setClassCol1(colName);
+    if (!colName) {
+        setAvailableClasses([]);
+        return;
+    }
+    const classes = [...new Set(sourceData.map(row => String(row[colName] || "").trim()))].filter(Boolean).sort();
+    setAvailableClasses(classes);
+    setSelectedClasses(classes); 
   };
+
+  const toggleClass = (cls) => {
+    setSelectedClasses(prev => prev.includes(cls) ? prev.filter(c => c !== cls) : [...prev, cls]);
+  };
+
+  const toggleAllClasses = () => {
+    if (selectedClasses.length === availableClasses.length) setSelectedClasses([]);
+    else setSelectedClasses(availableClasses);
+  };
+
+  // --- 4. TRAITEMENT ---
+  const processComparison = () => {
+    if (!selectedKey1 || !selectedKey2) {
+        alert("Sélectionnez les colonnes de comparaison.");
+        return;
+    }
+
+    setIsProcessing(true);
+    
+    setTimeout(() => {
+        let filteredData1 = data1;
+        if (classCol1 && selectedClasses.length > 0) {
+            filteredData1 = data1.filter(row => selectedClasses.includes(String(row[classCol1]).trim()));
+        }
+
+        const set1 = new Set(filteredData1.map(row => normalizeValue(row[selectedKey1])));
+        const set2 = new Set(data2.map(row => normalizeValue(row[selectedKey2])));
+
+        const missingIn2 = filteredData1.filter(row => !set2.has(normalizeValue(row[selectedKey1])));
+        const surplusIn2 = data2.filter(row => !set1.has(normalizeValue(row[selectedKey2])));
+        const common = filteredData1.filter(row => set2.has(normalizeValue(row[selectedKey1])));
+
+        setComparisonResult({
+            missing: missingIn2,
+            surplus: surplusIn2,
+            common: common
+        });
+        setIsProcessing(false);
+    }, 500);
+  };
+
+  // --- 5. EXPORTS ---
+  const getEssentialData = (row, mapping) => ({
+    "Matricule": row[mapping.matricule] || "-",
+    "Nom": row[mapping.nom] || "-",
+    "Prénoms": row[mapping.prenom] || "-",
+    "Classe": row[mapping.classe] || "-"
+  });
+
+  const exportExcel = (dataToExport, fileName, mapping) => {
+    const cleanData = dataToExport.map(row => getEssentialData(row, mapping));
+    const ws = XLSX.utils.json_to_sheet(cleanData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resultats");
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
+  };
+
+  const exportPDF = (dataToExport, title, mapping) => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.setTextColor(40, 40, 40);
+    doc.text("Rapport Comparatif", 14, 20);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Type: ${title}`, 14, 28);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 34);
+
+    const headers = ["Matricule", "Nom", "Prénoms", "Classe"];
+    const colClass = mapping.classe;
+
+    let finalY = 40; 
+
+    if (colClass) {
+        const groupedData = dataToExport.reduce((acc, row) => {
+            const className = row[colClass] || "Sans Classe";
+            if (!acc[className]) acc[className] = [];
+            acc[className].push(row);
+            return acc;
+        }, {});
+
+        Object.keys(groupedData).sort().forEach((cls) => {
+            const rows = groupedData[cls].map(row => [
+                row[mapping.matricule] || "-",
+                row[mapping.nom] || "-",
+                row[mapping.prenom] || "-",
+                row[mapping.classe] || "-"
+            ]);
+
+            if (finalY > 250) {
+                doc.addPage();
+                finalY = 20;
+            }
+
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(79, 70, 229); // Indigo
+            doc.text(`Classe : ${cls} (${rows.length})`, 14, finalY);
+            
+            autoTable(doc, {
+                head: [headers],
+                body: rows,
+                startY: finalY + 5,
+                theme: 'grid',
+                headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+                styles: { fontSize: 9, cellPadding: 2 },
+                alternateRowStyles: { fillColor: [245, 247, 255] }
+            });
+
+            finalY = doc.lastAutoTable.finalY + 15;
+        });
+    } else {
+        const rows = dataToExport.map(row => [
+            row[mapping.matricule] || "-",
+            row[mapping.nom] || "-",
+            row[mapping.prenom] || "-",
+            row[mapping.classe] || "-"
+        ]);
+        
+        autoTable(doc, {
+            head: [headers],
+            body: rows,
+            startY: 40,
+            theme: 'grid',
+            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+            styles: { fontSize: 9, cellPadding: 2 },
+            alternateRowStyles: { fillColor: [245, 247, 255] }
+        });
+    }
+
+    doc.save(`${title}.pdf`);
+  };
+
+  const getCurrentMapping = () => activeTab === 'surplus' ? displayMapping2 : displayMapping1;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] bg-slate-50 animate-in fade-in duration-500">
-      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shadow-sm h-16 shrink-0 z-20">
+    <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden animate-in fade-in duration-500 transition-colors">
+      
+      {/* HEADER */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 px-6 flex items-center justify-between shrink-0 z-30 transition-colors">
         <div className="flex items-center gap-4">
-            <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors active:scale-95"><ChevronLeft className="w-5 h-5" /></button>
-            <div className="h-8 w-[1px] bg-slate-200 mx-1"></div>
-            <div className="flex gap-3">
-                {[1, 2].map(n => (
-                    <label key={n} className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all active:scale-95 ${(n===1?file1:file2) ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-inner' : 'bg-white border-slate-300 text-slate-600 hover:border-indigo-300 hover:shadow-sm'}`}>
-                        <div className={`p-1 rounded-md ${(n===1?file1:file2) ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500'}`}>
-                            <FileSpreadsheet className="w-3.5 h-3.5"/>
-                        </div>
-                        <span className="truncate max-w-[120px]">{(n===1?file1:file2)?.name || (n===1 ? "1. Liste Réf" : "2. Liste Vérif")}</span>
-                        <input type="file" accept=".xlsx, .xls" onChange={(e) => handleFileUpload(e, n)} className="hidden" />
-                    </label>
-                ))}
+            <button onClick={onBack} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 transition-all active:scale-90"><ChevronLeft className="w-5 h-5" /></button>
+            <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700"></div>
+            <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400">
+                <ArrowRightLeft className="w-4 h-4"/>
+                <h2 className="font-black text-xs uppercase tracking-[0.2em]">Comparateur</h2>
             </div>
-        </div>
-        <div className="flex gap-3">
-            <button onClick={processComparison} disabled={!file1 || !file2 || isProcessing} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black uppercase rounded-lg flex items-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 transition-all">
-                {isProcessing ? <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"/> : <Play className="w-3 h-3 fill-current"/>} 
-                {isProcessing ? "Analyse..." : "Comparer"}
-            </button>
-            {hasProcessed && (
-                <div className="flex bg-slate-100 rounded-lg p-1 gap-1 animate-in slide-in-from-right-4">
-                    <button onClick={exportToExcel} className="px-3 py-1.5 bg-white hover:bg-green-50 text-green-700 border border-slate-200 text-[10px] font-black uppercase rounded-md flex items-center gap-2 transition-all shadow-sm active:scale-95"><Download className="w-3 h-3"/> Excel</button>
-                    <button onClick={exportToPDF} className="px-3 py-1.5 bg-white hover:bg-red-50 text-red-700 border border-slate-200 text-[10px] font-black uppercase rounded-md flex items-center gap-2 transition-all shadow-sm active:scale-95"><FileText className="w-3 h-3"/> PDF</button>
-                </div>
-            )}
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {availableClasses.length > 0 && (
-            <div className="w-64 bg-white border-r border-slate-200 flex flex-col z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Filter className="w-3 h-3"/> Filtre Classes</span>
-                    <button onClick={() => setSelectedClasses(selectedClasses.size === availableClasses.length ? new Set() : new Set(availableClasses))} className="text-[10px] font-bold text-indigo-600 hover:underline">
-                        {selectedClasses.size === availableClasses.length ? "Aucune" : "Toutes"}
-                    </button>
+      {/* WORKSPACE */}
+      <div className="flex-1 overflow-auto p-4 md:p-8 flex flex-col items-center">
+        
+        {/* IMPORTS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-5xl mb-8">
+            <div className={`p-6 rounded-3xl border-2 border-dashed transition-all relative group ${file1 ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                <div className="flex flex-col items-center text-center">
+                    <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center mb-3">
+                        <FileSpreadsheet className="w-6 h-6"/>
+                    </div>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm mb-1">{file1 ? file1.name : "Fichier Référence (A)"}</h3>
+                    <label className="mt-4 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-xs font-bold uppercase cursor-pointer hover:scale-105 transition-transform">
+                        {file1 ? "Changer A" : "Importer A"}
+                        <input type="file" className="hidden" accept=".xlsx, .xls" onChange={(e) => handleFileUpload(e, setFile1, setData1, setColumns1, setSelectedKey1, setDisplayMapping1, true)} />
+                    </label>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                    {availableClasses.map(cls => {
-                        const stats = classStats[cls] || { present: 0, missing: 0 };
-                        return (
-                            <label key={cls} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer text-xs transition-all border ${selectedClasses.has(cls) ? 'bg-indigo-50 border-indigo-100 text-indigo-900 shadow-sm' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:border-slate-100'}`}>
-                                <div className="flex items-center gap-3">
-                                    <input type="checkbox" checked={selectedClasses.has(cls)} onChange={() => { const s = new Set(selectedClasses); s.has(cls) ? s.delete(cls) : s.add(cls); setSelectedClasses(s); }} className="accent-indigo-600 w-3.5 h-3.5 rounded-sm" />
-                                    <span className="font-bold">{cls}</span>
+            </div>
+
+            <div className={`p-6 rounded-3xl border-2 border-dashed transition-all relative group ${file2 ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                <div className="flex flex-col items-center text-center">
+                    <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 rounded-xl flex items-center justify-center mb-3">
+                        <FileSpreadsheet className="w-6 h-6"/>
+                    </div>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm mb-1">{file2 ? file2.name : "Fichier Comparé (B)"}</h3>
+                    <label className="mt-4 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-xs font-bold uppercase cursor-pointer hover:scale-105 transition-transform">
+                        {file2 ? "Changer B" : "Importer B"}
+                        <input type="file" className="hidden" accept=".xlsx, .xls" onChange={(e) => handleFileUpload(e, setFile2, setData2, setColumns2, setSelectedKey2, setDisplayMapping2, false)} />
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        {/* --- CONFIGURATION --- */}
+        {data1.length > 0 && data2.length > 0 && !comparisonResult && (
+            <div className="w-full max-w-4xl bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl border border-indigo-100 dark:border-indigo-900 mb-8 animate-in zoom-in-95">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800 text-indigo-600 dark:text-indigo-400">
+                    <Settings className="w-5 h-5" />
+                    <h3 className="font-black text-sm uppercase">Configuration</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                    {/* Clés */}
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><ArrowRightLeft className="w-3 h-3"/> Colonnes de Correspondance</h4>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Identifiant Fichier A</label>
+                            <select value={selectedKey1} onChange={(e) => setSelectedKey1(e.target.value)} className="w-full p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm outline-none">
+                                {columns1.map(col => <option key={col} value={col}>{col}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Identifiant Fichier B</label>
+                            <select value={selectedKey2} onChange={(e) => setSelectedKey2(e.target.value)} className="w-full p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm outline-none">
+                                {columns2.map(col => <option key={col} value={col}>{col}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Filtre Classe */}
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2"><Filter className="w-3 h-3"/> Filtrer Classe (Fichier A)</h4>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Colonne Classe</label>
+                            <select 
+                                value={classCol1} 
+                                onChange={(e) => handleClassColumnSelect(e.target.value)} 
+                                className="w-full p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm outline-none mb-3"
+                            >
+                                <option value="">-- Pas de filtrage --</option>
+                                {columns1.map(col => <option key={col} value={col}>{col}</option>)}
+                            </select>
+                        </div>
+                        {availableClasses.length > 0 && (
+                            <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700 max-h-40 overflow-y-auto custom-scrollbar">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[10px] font-bold uppercase text-slate-400">{selectedClasses.length} sélec.</span>
+                                    <button onClick={toggleAllClasses} className="text-[10px] font-bold text-indigo-500 hover:underline">Tout</button>
                                 </div>
-                                {hasProcessed && (
-                                    <div className="flex gap-1.5 text-[9px] font-mono">
-                                        <span className={`px-1.5 py-0.5 rounded ${stats.missing > 0 ? 'bg-red-100 text-red-600 font-bold' : 'bg-slate-100 text-slate-300'}`} title="Manquants">
-                                            -{stats.missing}
-                                        </span>
-                                        <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-bold" title="Présents">
-                                            +{stats.present}
-                                        </span>
-                                    </div>
-                                )}
-                            </label>
-                        );
-                    })}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {availableClasses.map(cls => (
+                                        <label key={cls} className="flex items-center gap-2 cursor-pointer hover:bg-white dark:hover:bg-slate-700 p-1.5 rounded-lg transition-colors">
+                                            <input type="checkbox" checked={selectedClasses.includes(cls)} onChange={() => toggleClass(cls)} className="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"/>
+                                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{cls}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex justify-center border-t border-slate-100 dark:border-slate-800 pt-6">
+                    <button 
+                        onClick={processComparison}
+                        disabled={isProcessing}
+                        className="w-full md:w-auto px-12 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-sm uppercase shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"
+                    >
+                        {isProcessing ? "Analyse..." : "Comparer"}
+                        {!isProcessing && <ArrowRightLeft className="w-5 h-5"/>}
+                    </button>
                 </div>
             </div>
         )}
 
-        <div className="flex-1 flex flex-col bg-slate-50/50 relative overflow-hidden">
-            {!hasProcessed ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/30">
-                    <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-xl border border-white animate-in zoom-in-95 duration-500"><Users className="w-10 h-10 opacity-20 text-indigo-900"/></div>
-                    <p className="text-sm font-bold uppercase tracking-widest opacity-60">Prêt à comparer</p>
+        {/* RÉSULTATS */}
+        {comparisonResult && (
+            <div className="w-full max-w-6xl animate-in slide-in-from-bottom-8 duration-500">
+                <div className="flex justify-center gap-4 mb-6">
+                    <button onClick={() => setActiveTab('missing')} className={`px-6 py-3 rounded-xl font-bold text-xs uppercase flex items-center gap-2 transition-all ${activeTab === 'missing' ? 'bg-red-500 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><XCircle className="w-4 h-4"/> Manquants B ({comparisonResult.missing.length})</button>
+                    <button onClick={() => setActiveTab('surplus')} className={`px-6 py-3 rounded-xl font-bold text-xs uppercase flex items-center gap-2 transition-all ${activeTab === 'surplus' ? 'bg-orange-500 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><AlertTriangle className="w-4 h-4"/> Surplus B ({comparisonResult.surplus.length})</button>
+                    <button onClick={() => setActiveTab('common')} className={`px-6 py-3 rounded-xl font-bold text-xs uppercase flex items-center gap-2 transition-all ${activeTab === 'common' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}><CheckCircle2 className="w-4 h-4"/> Communs ({comparisonResult.common.length})</button>
                 </div>
-            ) : (
-                <>
-                    <div className="flex bg-white border-b border-slate-200 px-6 pt-2">
-                        <button onClick={() => setViewMode('missing')} className={`relative flex items-center gap-2 px-6 py-3 text-xs font-black uppercase transition-all ${viewMode==='missing' ? 'text-red-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                            <AlertCircle className="w-4 h-4"/> Manquants
-                            <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{Object.values(missingByClass).flat().length}</span>
-                            {viewMode==='missing' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-600 rounded-t-full"></div>}
-                        </button>
-                        <button onClick={() => setViewMode('present')} className={`relative flex items-center gap-2 px-6 py-3 text-xs font-black uppercase transition-all ${viewMode==='present' ? 'text-green-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                            <CheckCircle className="w-4 h-4"/> Présents
-                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] ml-1">{commonData.length}</span>
-                            {viewMode==='present' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-green-600 rounded-t-full"></div>}
-                        </button>
-                    </div>
 
-                    <div className="flex-1 overflow-auto custom-scrollbar p-6">
-                        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden ring-1 ring-slate-100">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                                    <tr>
-                                        <th className="px-6 py-4 w-32">Classe</th>
-                                        <th className="px-6 py-4 w-40">Matricule</th>
-                                        <th className="px-6 py-4">Nom & Prénoms</th>
-                                        <th className="px-6 py-4 text-right">Statut</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-xs text-slate-700 divide-y divide-slate-50">
-                                    {Array.from(selectedClasses).sort().map(cls => {
-                                        const list = viewMode === 'present' ? commonData.filter(d => d.Classe === cls) : missingByClass[cls] || [];
-                                        if (list.length === 0) return null;
-                                        return (
-                                            <React.Fragment key={cls}>
-                                                <tr className="bg-slate-50/50">
-                                                    <td colSpan="4" className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-t border-slate-100 mt-2">
-                                                        {cls} — {list.length} élève(s)
-                                                    </td>
-                                                </tr>
-                                                {list.map((row, idx) => (
-                                                    <tr key={`${cls}-${idx}`} className="group hover:bg-slate-50 transition-colors">
-                                                        <td className="px-6 py-3 font-bold text-slate-800">{row.Classe}</td>
-                                                        <td className="px-6 py-3 font-mono text-slate-500 bg-slate-50/30">{row.Matricule}</td>
-                                                        <td className="px-6 py-3 font-bold uppercase text-slate-600 group-hover:text-indigo-900 transition-colors">{row.Nom} {row.Prenom}</td>
-                                                        <td className="px-6 py-3 text-right">
-                                                            {viewMode === 'missing' 
-                                                                ? <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 text-red-600 text-[9px] font-black uppercase border border-red-100">Manquant</span>
-                                                                : <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-green-50 text-green-600 text-[9px] font-black uppercase border border-green-100">Présent</span>
-                                                            }
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                    {((viewMode === 'present' && commonData.length === 0) || (viewMode === 'missing' && Object.values(missingByClass).flat().length === 0)) && (
-                                        <tr><td colSpan="4" className="p-12 text-center text-slate-400 italic">Aucune donnée trouvée pour cette sélection.</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col h-[500px]">
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                            <Search className="w-4 h-4"/>
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                                {activeTab === 'missing' ? "Présents dans A, Absents de B" : activeTab === 'surplus' ? "Présents dans B, Absents de A" : "Présents dans les deux listes"}
+                            </span>
+                        </div>
+                        <div className="flex gap-2">
+                             <button onClick={() => setComparisonResult(null)} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg text-[10px] font-black uppercase hover:bg-slate-200 transition-colors">Nouvelle recherche</button>
+                            
+                            <button 
+                                onClick={() => exportExcel(comparisonResult[activeTab], `Resultat_${activeTab}`, getCurrentMapping())}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase flex items-center gap-2 transition-colors"
+                            >
+                                <Download className="w-3 h-3"/> Excel
+                            </button>
+                            <button 
+                                onClick={() => exportPDF(comparisonResult[activeTab], `Rapport_${activeTab}`, getCurrentMapping())}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase flex items-center gap-2 transition-colors"
+                            >
+                                <FileText className="w-3 h-3"/> PDF
+                            </button>
                         </div>
                     </div>
-                </>
-            )}
-        </div>
+
+                    <div className="flex-1 overflow-auto custom-scrollbar">
+                        {/* MODIFICATION ICI : SUPPRESSION DES BORDURES VERTICALES */}
+                        <table className="w-full text-left border-collapse">
+                            <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10">
+                                <tr>
+                                    <th className="p-3 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-200 dark:border-slate-800 w-12 text-center">#</th>
+                                    <th className="p-3 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-200 dark:border-slate-800">Matricule</th>
+                                    <th className="p-3 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-200 dark:border-slate-800">Nom</th>
+                                    <th className="p-3 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-200 dark:border-slate-800">Prénoms</th>
+                                    <th className="p-3 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-200 dark:border-slate-800">Classe</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                {comparisonResult[activeTab].map((row, idx) => {
+                                    const mapping = getCurrentMapping();
+                                    return (
+                                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <td className="p-3 text-xs text-slate-400 dark:text-slate-600 border-b border-slate-100 dark:border-slate-800 text-center">{idx + 1}</td>
+                                            <td className="p-3 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800">{row[mapping.matricule] || "-"}</td>
+                                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">{row[mapping.nom] || "-"}</td>
+                                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">{row[mapping.prenom] || "-"}</td>
+                                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">{row[mapping.classe] || "-"}</td>
+                                        </tr>
+                                    );
+                                })}
+                                {comparisonResult[activeTab].length === 0 && (
+                                    <tr><td colSpan="5" className="p-12 text-center text-slate-400 dark:text-slate-600 text-sm">Aucune donnée.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        )}
+
       </div>
     </div>
   );
