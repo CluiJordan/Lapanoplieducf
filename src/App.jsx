@@ -56,8 +56,8 @@ const App = () => {
                 <header className="mb-8 md:mb-12 pt-4 md:pt-6 max-w-5xl mx-auto px-4">
                     <div className="flex flex-col md:flex-row items-center md:items-center gap-6 md:gap-8 text-center md:text-left">
                         
-                        {/* LOGO */}
-                        <div className="shrink-0 bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-sm transition-colors duration-300">
+                        {/* LOGO - Capsule supprimée, image conservée */}
+                        <div className="shrink-0">
                             <img 
                                 src={logoData} 
                                 alt="Logo Lapanoplieducf" 
