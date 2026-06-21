@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import {
   ChevronLeft, ArrowRightLeft, FileSpreadsheet,
-  CheckCircle2, XCircle, AlertTriangle, Download, Search,
-  Settings, FileText, Filter, Upload
+  Download, Search, Settings, FileText, Filter, Upload
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -182,12 +181,6 @@ const ComparatorTool = ({ onBack }) => {
     );
   };
 
-  const TABS = [
-    { id: 'missing', label: 'Manquants dans B', color: 'red', Icon: XCircle, activeClass: 'bg-red-500 text-white shadow-lg shadow-red-200 dark:shadow-red-900/30' },
-    { id: 'surplus', label: 'Surplus dans B', color: 'orange', Icon: AlertTriangle, activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-200 dark:shadow-orange-900/30' },
-    { id: 'common', label: 'Communs', color: 'emerald', Icon: CheckCircle2, activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 dark:shadow-emerald-900/30' },
-  ];
-
   const filteredRows = getFilteredRows();
 
   return (
@@ -212,51 +205,75 @@ const ComparatorTool = ({ onBack }) => {
 
         {/* FILE IMPORT ZONES */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-4xl mb-7">
-          {[
-            {
-              file: file1, label: 'Fichier Référence', sublabel: 'A', color: 'indigo',
-              onChange: (e) => handleFileUpload(e, setFile1, setData1, setColumns1, setSelectedKey1, setDisplayMapping1, true),
-              count: data1.length,
-            },
-            {
-              file: file2, label: 'Fichier Comparé', sublabel: 'B', color: 'violet',
-              onChange: (e) => handleFileUpload(e, setFile2, setData2, setColumns2, setSelectedKey2, setDisplayMapping2, false),
-              count: data2.length,
-            },
-          ].map(({ file, label, sublabel, color, onChange, count }) => (
-            <label
-              key={sublabel}
-              className={`relative flex flex-col items-center text-center p-7 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 ${
-                file
-                  ? `border-${color}-400 dark:border-${color}-600 bg-${color}-50 dark:bg-${color}-900/20`
-                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'
-              }`}
-            >
-              <input type="file" className="hidden" accept=".xlsx,.xls" onChange={onChange} />
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
-                file ? `bg-${color}-100 dark:bg-${color}-900/40 text-${color}-600 dark:text-${color}-400` : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-              }`}>
-                {file ? <FileSpreadsheet className="w-6 h-6" /> : <Upload className="w-6 h-6" />}
-              </div>
-              {file ? (
-                <>
-                  <p className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate max-w-full mb-1">{file.name}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{count} lignes détectées</p>
-                  <span className={`text-[10px] font-black uppercase tracking-widest bg-${color}-100 dark:bg-${color}-900/40 text-${color}-700 dark:text-${color}-400 px-3 py-1 rounded-full`}>
-                    Changer le fichier {sublabel}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <p className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">{label}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Fichier {sublabel}</p>
-                  <span className="text-[10px] font-black uppercase tracking-widest bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-2 rounded-lg">
-                    Importer {sublabel}
-                  </span>
-                </>
-              )}
-            </label>
-          ))}
+
+          {/* Zone A — indigo */}
+          <label className={`flex flex-col items-center text-center p-7 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 ${
+            file1
+              ? 'border-indigo-400 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/40'
+              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'
+          }`}>
+            <input type="file" className="hidden" accept=".xlsx,.xls"
+              onChange={(e) => handleFileUpload(e, setFile1, setData1, setColumns1, setSelectedKey1, setDisplayMapping1, true)} />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
+              file1
+                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+            }`}>
+              {file1 ? <FileSpreadsheet className="w-6 h-6" /> : <Upload className="w-6 h-6" />}
+            </div>
+            {file1 ? (
+              <>
+                <p className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate max-w-full mb-1">{file1.name}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{data1.length} lignes détectées</p>
+                <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 px-3 py-1 rounded-full">
+                  Changer le fichier A
+                </span>
+              </>
+            ) : (
+              <>
+                <p className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Fichier Référence</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Fichier A</p>
+                <span className="text-[10px] font-black uppercase tracking-widest bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-2 rounded-lg">
+                  Importer A
+                </span>
+              </>
+            )}
+          </label>
+
+          {/* Zone B — teal */}
+          <label className={`flex flex-col items-center text-center p-7 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 ${
+            file2
+              ? 'border-teal-400 dark:border-teal-900/40 bg-teal-50 dark:bg-teal-900/20'
+              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'
+          }`}>
+            <input type="file" className="hidden" accept=".xlsx,.xls"
+              onChange={(e) => handleFileUpload(e, setFile2, setData2, setColumns2, setSelectedKey2, setDisplayMapping2, false)} />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${
+              file2
+                ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+            }`}>
+              {file2 ? <FileSpreadsheet className="w-6 h-6" /> : <Upload className="w-6 h-6" />}
+            </div>
+            {file2 ? (
+              <>
+                <p className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate max-w-full mb-1">{file2.name}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{data2.length} lignes détectées</p>
+                <span className="text-[10px] font-black uppercase tracking-widest bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-400 px-3 py-1 rounded-full">
+                  Changer le fichier B
+                </span>
+              </>
+            ) : (
+              <>
+                <p className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-1">Fichier Comparé</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Fichier B</p>
+                <span className="text-[10px] font-black uppercase tracking-widest bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-2 rounded-lg">
+                  Importer B
+                </span>
+              </>
+            )}
+          </label>
+
         </div>
 
         {/* CONFIGURATION */}
