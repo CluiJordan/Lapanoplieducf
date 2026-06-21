@@ -71,7 +71,7 @@ const App = () => {
 
   if (currentView !== 'dashboard') {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 transition-colors duration-300">
         {currentView === 'comparator' && <ComparatorTool onBack={goBack} />}
         {currentView === 'compressor' && <CompressorTool onBack={goBack} />}
         {currentView === 'extractor' && <ColumnExtractorTool onBack={goBack} />}
@@ -80,14 +80,14 @@ const App = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 transition-colors duration-300">
 
       {/* NAV */}
-      <nav className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md transition-colors">
+      <nav className="sticky top-0 z-50 border-b border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md transition-colors">
         <div className="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logoData} alt="Lapanoplieducf" className="h-8 w-auto" />
-            <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+            <div className="h-5 w-px bg-slate-200 dark:bg-zinc-700 hidden sm:block" />
             <span className="font-black text-slate-800 dark:text-white text-sm hidden sm:block tracking-tight">
               Lapanoplieducf
             </span>
@@ -95,7 +95,7 @@ const App = () => {
           <button
             onClick={() => setIsDarkMode(p => !p)}
             aria-label="Changer le thème"
-            className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition-all"
+            className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 flex items-center justify-center transition-all"
           >
             {isDarkMode
               ? <Sun className="w-4 h-4 text-amber-400" />
@@ -117,7 +117,7 @@ const App = () => {
             {' '}sans complexité.
           </span>
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-base max-w-md mx-auto leading-relaxed">
+        <p className="text-slate-500 dark:text-zinc-400 text-base max-w-md mx-auto leading-relaxed">
           Trois outils essentiels. Traitement 100&nbsp;% local — aucun fichier ne quitte votre appareil.
         </p>
       </div>
@@ -129,9 +129,9 @@ const App = () => {
             <button
               key={id}
               onClick={() => setCurrentView(id)}
-              className={`group text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${hoverBorder} rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${hoverShadow} focus:outline-none`}
+              className={`group text-left bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 ${hoverBorder} rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${hoverShadow} focus:outline-none`}
             >
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-600 mb-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-zinc-600 mb-5">
                 {tag}
               </p>
 
@@ -140,7 +140,7 @@ const App = () => {
               </div>
 
               <h2 className="font-black text-slate-900 dark:text-white text-lg mb-2 leading-tight">{label}</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6">{description}</p>
+              <p className="text-sm text-slate-500 dark:text-zinc-400 leading-relaxed mb-6">{description}</p>
 
               <div className={`inline-flex items-center gap-2 ${btn} text-white text-[11px] font-black uppercase tracking-wider px-4 py-2 rounded-lg shadow-sm transition-all group-hover:shadow-md`}>
                 Ouvrir <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -151,8 +151,8 @@ const App = () => {
       </div>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 py-6">
-        <p className="text-center text-xs text-slate-400 dark:text-slate-600">
+      <footer className="border-t border-slate-200 dark:border-zinc-800 py-6">
+        <p className="text-center text-xs text-slate-400 dark:text-zinc-600">
           © 2026 Lapanoplieducf — Traitement 100&nbsp;% local, aucune donnée transmise.
         </p>
       </footer>

@@ -133,15 +133,15 @@ const CompressorTool = ({ onBack }) => {
   const isPDF = file?.name.toLowerCase().endsWith('.pdf');
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-zinc-950 transition-colors duration-300">
 
       {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 px-6 flex items-center shrink-0 transition-colors">
+      <div className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 h-16 px-6 flex items-center shrink-0 transition-colors">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-all active:scale-90">
+          <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl text-slate-500 dark:text-zinc-400 transition-all active:scale-90">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+          <div className="h-6 w-px bg-slate-200 dark:bg-zinc-700" />
           <div className="flex items-center gap-2.5 text-teal-600 dark:text-teal-400">
             <Minimize2 className="w-4 h-4" />
             <h2 className="font-black text-xs uppercase tracking-[0.2em]">Compresseur</h2>
@@ -154,23 +154,23 @@ const CompressorTool = ({ onBack }) => {
         <div className="w-full max-w-4xl">
 
           {/* MAIN CARD */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col md:flex-row min-h-[520px] transition-colors">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden flex flex-col md:flex-row min-h-[520px] transition-colors">
 
             {/* LEFT PANEL — FILE */}
-            <div className="w-full md:w-2/5 bg-slate-50 dark:bg-slate-950/60 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 p-8 flex flex-col items-center justify-center text-center">
+            <div className="w-full md:w-2/5 bg-slate-50 dark:bg-zinc-950/60 border-b md:border-b-0 md:border-r border-slate-200 dark:border-zinc-800 p-8 flex flex-col items-center justify-center text-center">
               {!file ? (
                 <label
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
                   onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
-                  className={`cursor-pointer flex flex-col items-center w-full p-8 rounded-2xl border-2 border-dashed transition-all ${dragOver ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                  className={`cursor-pointer flex flex-col items-center w-full p-8 rounded-2xl border-2 border-dashed transition-all ${dragOver ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600'}`}
                 >
-                  <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-5 transition-all">
-                    <Upload className="w-9 h-9 text-slate-300 dark:text-slate-600" />
+                  <div className="w-20 h-20 bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-700 flex items-center justify-center mb-5 transition-all">
+                    <Upload className="w-9 h-9 text-slate-300 dark:text-zinc-600" />
                   </div>
-                  <p className="font-black text-slate-700 dark:text-slate-300 text-sm mb-1">Importer un fichier</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">PDF · JPG · PNG</p>
-                  <span className="text-[10px] font-black uppercase tracking-widest bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-2 rounded-lg">
+                  <p className="font-black text-slate-700 dark:text-zinc-300 text-sm mb-1">Importer un fichier</p>
+                  <p className="text-xs text-slate-400 dark:text-zinc-500 mb-5">PDF · JPG · PNG</p>
+                  <span className="text-[10px] font-black uppercase tracking-widest bg-slate-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2 rounded-lg">
                     Parcourir
                   </span>
                   <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files[0])} />
@@ -178,7 +178,7 @@ const CompressorTool = ({ onBack }) => {
               ) : (
                 <div className="w-full animate-in flex flex-col items-center">
                   <div className="relative mb-4">
-                    <div className="w-20 h-20 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-center shadow-sm">
+                    <div className="w-20 h-20 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-2xl flex items-center justify-center shadow-sm">
                       {isPDF
                         ? <FileText className="w-10 h-10 text-red-500" />
                         : <ImageIcon className="w-10 h-10 text-teal-500" />
@@ -186,14 +186,14 @@ const CompressorTool = ({ onBack }) => {
                     </div>
                     <button
                       onClick={reset}
-                      className="absolute -top-2 -right-2 p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-slate-400 hover:text-red-500 transition-colors shadow-sm"
+                      className="absolute -top-2 -right-2 p-1.5 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-full text-slate-400 hover:text-red-500 transition-colors shadow-sm"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate w-full mb-2 px-2 text-center">{file.name}</p>
-                  <div className="bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-1.5 mb-4">
-                    <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">{formatBytes(file.size)}</span>
+                  <p className="font-bold text-slate-800 dark:text-zinc-200 text-xs truncate w-full mb-2 px-2 text-center">{file.name}</p>
+                  <div className="bg-slate-100 dark:bg-zinc-800 rounded-lg px-3 py-1.5 mb-4">
+                    <span className="text-xs font-mono font-bold text-slate-600 dark:text-zinc-400">{formatBytes(file.size)}</span>
                   </div>
                   {compressedSize && (
                     <div className="w-full bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-900/40 rounded-xl p-4 text-center">
@@ -210,11 +210,11 @@ const CompressorTool = ({ onBack }) => {
             </div>
 
             {/* RIGHT PANEL — CONTROLS */}
-            <div className="flex-1 p-8 md:p-12 flex flex-col justify-center bg-white dark:bg-slate-900 transition-colors">
+            <div className="flex-1 p-8 md:p-12 flex flex-col justify-center bg-white dark:bg-zinc-900 transition-colors">
               {!file && (
-                <div className="flex flex-col items-center text-slate-200 dark:text-slate-700 select-none">
+                <div className="flex flex-col items-center text-slate-200 dark:text-zinc-700 select-none">
                   <Target className="w-16 h-16 mb-4" />
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:text-slate-600">Optimisation Mathématique</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 dark:text-zinc-600">Optimisation Mathématique</p>
                 </div>
               )}
 
@@ -225,15 +225,15 @@ const CompressorTool = ({ onBack }) => {
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Algorithme de convergence par dichotomie</p>
                   </div>
 
-                  <div className="bg-slate-50 dark:bg-slate-800/60 p-6 rounded-2xl border border-slate-100 dark:border-slate-700">
+                  <div className="bg-slate-50 dark:bg-zinc-800/60 p-6 rounded-2xl border border-slate-100 dark:border-zinc-700">
                     <div className="flex justify-between items-center mb-5">
-                      <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Poids cible</span>
+                      <span className="text-xs font-black text-slate-500 dark:text-zinc-400 uppercase tracking-widest">Poids cible</span>
                       <div className="flex items-center gap-1.5">
                         <input
                           type="number"
                           value={targetSizeKB}
                           onChange={(e) => setTargetSizeKB(parseInt(e.target.value) || 0)}
-                          className="w-20 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono font-bold text-center text-sm outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all"
+                          className="w-20 px-3 py-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white font-mono font-bold text-center text-sm outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all"
                         />
                         <span className="text-xs font-bold text-slate-400">Ko</span>
                       </div>
@@ -242,7 +242,7 @@ const CompressorTool = ({ onBack }) => {
                       type="range" min="10" max="2500" step="10"
                       value={targetSizeKB}
                       onChange={(e) => setTargetSizeKB(Number(e.target.value))}
-                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-teal-600"
+                      className="w-full h-2 bg-slate-200 dark:bg-zinc-700 rounded-full appearance-none cursor-pointer accent-teal-600"
                     />
                     <div className="flex justify-between mt-2 text-[10px] text-slate-400 font-mono">
                       <span>10 Ko</span><span>2 500 Ko</span>
@@ -264,7 +264,7 @@ const CompressorTool = ({ onBack }) => {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 font-mono">
                     Convergence vers {targetSizeKB} Ko…
                   </p>
-                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                     <div
                       className="bg-teal-600 h-full rounded-full transition-all duration-300"
                       style={{ width: `${progress}%` }}
